@@ -36,11 +36,7 @@
     <!-- Additional metadata -->
     <Title>BlazorLore Scaffold CLI</Title>
     <Summary>Generate and refactor Blazor components with ease</Summary>
-    <PackageReleaseNotes>v1.0.1: 
-- Fixed code-behind extraction to use partial classes instead of inheritance
-- Fixed form generation to include model namespace in @using directives
-- Renamed form callbacks from OnSubmit/OnCancel to OnFormSubmit/OnFormCancel to avoid naming conflicts
-- Components now use modern partial class pattern without Base suffix</PackageReleaseNotes>
+    <PackageReleaseNotes>Initial release with component and form generation support</PackageReleaseNotes>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
