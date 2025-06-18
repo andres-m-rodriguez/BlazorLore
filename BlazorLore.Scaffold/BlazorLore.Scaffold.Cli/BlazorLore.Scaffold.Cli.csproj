@@ -5,7 +5,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PublishAot>true</PublishAot>
+    <!-- AOT is only enabled when publishing with a runtime identifier, not when packing -->
+    <PublishAot Condition="'$(RuntimeIdentifier)' != ''">true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
