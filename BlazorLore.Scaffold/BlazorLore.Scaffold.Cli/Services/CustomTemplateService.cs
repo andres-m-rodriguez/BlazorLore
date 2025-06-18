@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Scriban;
-using BlazorLore.Scaffold.Cli.Models;
 
 namespace BlazorLore.Scaffold.Cli.Services;
 
@@ -36,35 +35,35 @@ public class CustomTemplateService
         Directory.CreateDirectory(componentDir);
 
         // Create config file
-        var config = new TemplateConfigExample
+        var config = new TemplateConfig
         {
             Name = "My Custom Component",
             Description = "A custom component template example",
             Category = "component",
-            Files = new List<TemplateFileExample>
+            Files = new List<TemplateFile>
             {
-                new TemplateFileExample 
+                new TemplateFile 
                 { 
                     Source = "component.razor.scriban", 
                     Output = "{{ name }}.razor" 
                 },
-                new TemplateFileExample
+                new TemplateFile
                 { 
                     Source = "component.razor.cs.scriban", 
                     Output = "{{ name }}.razor.cs",
                     Condition = "{{ has_code_behind }}"
                 }
             },
-            Parameters = new List<TemplateParameterExample>
+            Parameters = new List<TemplateParameter>
             {
-                new TemplateParameterExample
+                new TemplateParameter
                 { 
                     Name = "includeHeader", 
                     Type = "bool", 
                     DefaultValue = true,
                     Description = "Include a header section"
                 },
-                new TemplateParameterExample
+                new TemplateParameter
                 {
                     Name = "author",
                     Type = "string",
