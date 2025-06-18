@@ -10,6 +10,8 @@
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <!-- Suppress AOT warnings for CompareAttribute and Assembly.Location -->
+    <NoWarn>$(NoWarn);IL2026;IL3000</NoWarn>
     
     <!-- Tool packaging -->
     <PackAsTool>true</PackAsTool>

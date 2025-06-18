@@ -3,8 +3,20 @@
     <type fullname="BlazorLore.Scaffold.Cli.Commands.ComponentCommand" />
     <type fullname="BlazorLore.Scaffold.Cli.Services.ComponentGenerator" />
     <type fullname="BlazorLore.Scaffold.Cli.Services.ComponentRefactorer" />
+    <type fullname="BlazorLore.Scaffold.Cli.Services.FormGenerator" />
+    <type fullname="BlazorLore.Scaffold.Cli.Services.ModelAnalyzer" />
+    <type fullname="BlazorLore.Scaffold.Cli.Commands.FormCommand" />
+    <!-- Preserve User model properties for CompareAttribute -->
+    <type fullname="BlazorLore.Scaffold.Cli.Models.User" preserve="all">
+      <property name="Password" />
+      <property name="ConfirmPassword" />
+    </type>
   </assembly>
   <assembly fullname="Scriban">
     <type fullname="Scriban.Template" />
+  </assembly>
+  <!-- Preserve System.ComponentModel.DataAnnotations for validation -->
+  <assembly fullname="System.ComponentModel.Annotations">
+    <type fullname="System.ComponentModel.DataAnnotations.CompareAttribute" preserve="all" />
   </assembly>
 </linker>

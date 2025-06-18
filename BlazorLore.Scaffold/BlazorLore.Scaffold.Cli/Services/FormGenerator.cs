@@ -8,9 +8,8 @@ public class FormGenerator
 
     public FormGenerator()
     {
-        // Get the directory where the executable is located
-        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-        var directory = Path.GetDirectoryName(assemblyLocation) ?? ".";
+        // Use AppContext.BaseDirectory for AOT and single-file compatibility
+        var directory = AppContext.BaseDirectory;
         _templateBasePath = Path.Combine(directory, "Templates", "Form");
     }
 
