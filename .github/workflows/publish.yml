@@ -76,10 +76,25 @@ jobs:
     
     - name: Push to NuGet
       run: |
+        echo "Starting NuGet push..."
+        echo "Checking for packages:"
+        ls -la ./artifacts/*.nupkg
+        
+        # Check if API key is set (don't print it!)
+        if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+          echo "ERROR: NUGET_API_KEY secret is not set!"
+          exit 1
+        else
+          echo "API key is configured (length: ${#NUGET_API_KEY})"
+        fi
+        
+        echo "Pushing to NuGet..."
         dotnet nuget push ./artifacts/*.nupkg \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
+        
+        echo "Push command completed with exit code: $?"
     
     - name: Create GitHub Release Assets
       if: github.event_name == 'release'
