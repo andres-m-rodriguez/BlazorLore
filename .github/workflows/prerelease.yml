@@ -4,7 +4,7 @@ on:
   push:
     branches: [ develop ]
     paths:
-      - 'BlazorLore.Scaffold.Cli/**'
+      - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/**'
   workflow_dispatch:
     inputs:
       prerelease_suffix:
@@ -36,7 +36,7 @@ jobs:
       id: version
       run: |
         # Get base version from csproj
-        BASE_VERSION=$(grep -oP '(?<=<Version>)[^<]+' BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj)
+        BASE_VERSION=$(grep -oP '(?<=<Version>)[^<]+' BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj)
         
         # Get commit count since last tag
         LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -57,19 +57,19 @@ jobs:
     
     - name: Update version
       run: |
-        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
     
     - name: Build and Test
       run: |
-        dotnet restore BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
-        dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release
+        dotnet restore BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        dotnet build BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release
         
-        if [ -d "BlazorLore.Scaffold.Cli.Tests" ]; then
-          dotnet test BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release
+        if [ -d "BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests" ]; then
+          dotnet test BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release
         fi
     
     - name: Pack
-      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release -o ./artifacts
+      run: dotnet pack BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release -o ./artifacts
     
     - name: Push to NuGet
       run: |

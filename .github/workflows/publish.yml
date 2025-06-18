@@ -40,27 +40,27 @@ jobs:
     - name: Update version in project
       run: |
         # Update version in csproj file
-        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
         
         # Show updated version
-        grep "<Version>" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        grep "<Version>" BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
     
     - name: Restore dependencies
-      run: dotnet restore BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+      run: dotnet restore BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
     
     - name: Build
-      run: dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-restore
+      run: dotnet build BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-restore
     
     - name: Run tests
       run: |
-        if [ -d "BlazorLore.Scaffold.Cli.Tests" ]; then
-          dotnet test BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release --no-build --verbosity normal
+        if [ -d "BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests" ]; then
+          dotnet test BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release --no-build --verbosity normal
         else
           echo "No test project found, skipping tests"
         fi
     
     - name: Pack
-      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
+      run: dotnet pack BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
     
     - name: Show package info
       run: |
