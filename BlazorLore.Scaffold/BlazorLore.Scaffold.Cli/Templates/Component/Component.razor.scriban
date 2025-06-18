@@ -1,0 +1,30 @@
+{{ if has_code_behind }}@inherits {{ name }}Base{{ else }}@inject ILogger<{{ name }}> Logger
+@inject NavigationManager Navigation{{ end }}
+
+<div class="{{ name | string.downcase }}">
+    <h3>{{ name }}</h3>
+    
+    <p>This is the {{ name }} component.</p>
+    
+    <button class="btn btn-primary" @onclick="HandleClick">
+        Click me
+    </button>
+    
+    <p>Counter: @_counter</p>
+</div>
+
+{{ if !has_code_behind }}
+@code {
+    private int _counter = 0;
+
+    protected override void OnInitialized()
+    {
+        Logger.LogInformation($"{{ name }} initialized");
+    }
+
+    private void HandleClick()
+    {
+        _counter++;
+        Logger.LogInformation($"Button clicked. Counter: {_counter}");
+    }
+}{{ end }}

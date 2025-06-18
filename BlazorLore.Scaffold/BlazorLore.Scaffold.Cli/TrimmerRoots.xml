@@ -1,0 +1,10 @@
+<linker>
+  <assembly fullname="BlazorLore.Scaffold.Cli">
+    <type fullname="BlazorLore.Scaffold.Cli.Commands.ComponentCommand" />
+    <type fullname="BlazorLore.Scaffold.Cli.Services.ComponentGenerator" />
+    <type fullname="BlazorLore.Scaffold.Cli.Services.ComponentRefactorer" />
+  </assembly>
+  <assembly fullname="Scriban">
+    <type fullname="Scriban.Template" />
+  </assembly>
+</linker>

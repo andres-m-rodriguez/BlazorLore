@@ -1,0 +1,20 @@
+.{{ name | string.downcase }} {
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    background-color: #f8f9fa;
+}
+
+.{{ name | string.downcase }} h3 {
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.{{ name | string.downcase }} button {
+    margin: 0.5rem 0;
+}
+
+.{{ name | string.downcase }} p {
+    margin: 0.5rem 0;
+    color: #6c757d;
+}

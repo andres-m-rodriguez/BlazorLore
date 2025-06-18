@@ -1,0 +1,114 @@
+@using System.ComponentModel.DataAnnotations
+@inject ILogger<{{ form_name }}> Logger
+
+<EditForm Model="@{{ model_instance }}" OnValidSubmit="@{{ submit_action }}">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="form-container">
+        <h3>{{ if is_edit_form }}Edit {{ model_info.name }}{{ else }}Create {{ model_info.name }}{{ end }}</h3>
+
+        {{ for property in model_info.properties }}
+        <div class="form-group">
+            <label for="{{ property.name }}">{{ property.name }}:</label>
+            {{ if property.type == "string" || property.type == "string?" }}
+            <InputText id="{{ property.name }}" class="form-control" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ else if property.type == "int" || property.type == "int?" }}
+            <InputNumber id="{{ property.name }}" class="form-control" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ else if property.type == "decimal" || property.type == "decimal?" }}
+            <InputNumber id="{{ property.name }}" class="form-control" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ else if property.type == "DateTime" || property.type == "DateTime?" }}
+            <InputDate id="{{ property.name }}" class="form-control" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ else if property.type == "bool" || property.type == "bool?" }}
+            <InputCheckbox id="{{ property.name }}" class="form-check-input" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ else }}
+            <InputText id="{{ property.name }}" class="form-control" @bind-Value="{{ model_instance }}.{{ property.name }}" />
+            {{ end }}
+            <ValidationMessage For="@(() => {{ model_instance }}.{{ property.name }})" />
+        </div>
+        {{ end }}
+
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">
+                {{ if is_edit_form }}Update{{ else }}Create{{ end }}
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="Cancel">
+                Cancel
+            </button>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    {{ if is_edit_form }}
+    [Parameter] public {{ model_info.name }} {{ model_instance }} { get; set; } = new();
+    {{ else }}
+    private {{ model_info.name }} {{ model_instance }} = new();
+    {{ end }}
+
+    [Parameter] public EventCallback<{{ model_info.name }}> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task {{ submit_action }}()
+    {
+        Logger.LogInformation($"{{ if is_edit_form }}Updating{{ else }}Creating{{ end }} {{ model_info.name }}");
+        
+        if (OnSubmit.HasDelegate)
+        {
+            await OnSubmit.InvokeAsync({{ model_instance }});
+        }
+        
+        {{ if !is_edit_form }}
+        // Reset form for new entry
+        {{ model_instance }} = new();
+        {{ end }}
+    }
+
+    private async Task Cancel()
+    {
+        if (OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+}
+
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+
+    .form-check-input {
+        margin-top: 8px;
+    }
+
+    .btn {
+        margin-right: 10px;
+    }
+
+    .validation-message {
+        color: #dc3545;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+</style>
