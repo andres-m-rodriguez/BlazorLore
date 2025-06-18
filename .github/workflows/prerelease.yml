@@ -1,10 +1,6 @@
 name: Publish Pre-release
 
 on:
-  push:
-    branches: [ develop ]
-    paths:
-      - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/**'
   workflow_dispatch:
     inputs:
       prerelease_suffix:

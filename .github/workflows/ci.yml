@@ -2,13 +2,13 @@ name: CI Build and Test
 
 on:
   push:
-    branches: [ master, develop ]
+    branches: [ master ]
     paths:
       - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/**'
       - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests/**'
       - '.github/workflows/ci.yml'
   pull_request:
-    branches: [ master, develop ]
+    branches: [ master ]
     paths:
       - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli/**'
       - 'BlazorLore.Scaffold/BlazorLore.Scaffold.Cli.Tests/**'
