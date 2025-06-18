@@ -1,0 +1,104 @@
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'BlazorLore.Scaffold.Cli/**'
+      - 'BlazorLore.Scaffold.Cli.Tests/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'BlazorLore.Scaffold.Cli/**'
+      - 'BlazorLore.Scaffold.Cli.Tests/**'
+      - '.github/workflows/ci.yml'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+    
+    - name: Build
+      run: dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-restore
+    
+    - name: Run tests
+      run: |
+        if [ -d "BlazorLore.Scaffold.Cli.Tests" ]; then
+          dotnet test BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release --no-build --verbosity normal --logger:"console;verbosity=detailed"
+        else
+          echo "No test project found, skipping tests"
+        fi
+      shell: bash
+    
+    - name: Pack (without publishing)
+      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
+    
+    - name: Test local tool installation
+      run: |
+        # Install the tool locally
+        dotnet tool install --global --add-source ./artifacts BlazorLore.Scaffold.Cli
+        
+        # Test basic commands
+        blazor-scaffold --version
+        blazor-scaffold --help
+        
+        # Test component generation
+        mkdir test-output
+        cd test-output
+        blazor-scaffold component generate TestComponent --code-behind --css
+        
+        # Verify files were created
+        if [ -f "TestComponent.razor" ] && [ -f "TestComponent.razor.cs" ] && [ -f "TestComponent.razor.css" ]; then
+          echo "✅ All files generated successfully"
+        else
+          echo "❌ File generation failed"
+          ls -la
+          exit 1
+        fi
+        
+        # Clean up
+        cd ..
+        dotnet tool uninstall --global BlazorLore.Scaffold.Cli
+      shell: bash
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-package-${{ matrix.os }}
+        path: ./artifacts/*.nupkg
+        retention-days: 7
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Check formatting
+      run: |
+        dotnet format BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj --verify-no-changes || true
+    
+    - name: Run code analysis
+      run: |
+        dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release /p:TreatWarningsAsErrors=true

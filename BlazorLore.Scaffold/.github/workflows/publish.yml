@@ -1,0 +1,135 @@
+name: Publish to NuGet
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Determine version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" == "release" ]; then
+          # Extract version from tag (remove 'v' prefix if present)
+          VERSION="${GITHUB_REF#refs/tags/}"
+          VERSION="${VERSION#v}"
+        else
+          # Use manually provided version
+          VERSION="${{ inputs.version }}"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
+    
+    - name: Update version in project
+      run: |
+        # Update version in csproj file
+        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        
+        # Show updated version
+        grep "<Version>" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+    
+    - name: Restore dependencies
+      run: dotnet restore BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+    
+    - name: Build
+      run: dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-restore
+    
+    - name: Run tests
+      run: |
+        if [ -d "BlazorLore.Scaffold.Cli.Tests" ]; then
+          dotnet test BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release --no-build --verbosity normal
+        else
+          echo "No test project found, skipping tests"
+        fi
+    
+    - name: Pack
+      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
+    
+    - name: Show package info
+      run: |
+        echo "Package contents:"
+        ls -la ./artifacts/
+        
+        # Extract and show package metadata
+        PACKAGE_FILE=$(find ./artifacts -name "*.nupkg" | grep -v symbols | head -1)
+        echo "Package file: $PACKAGE_FILE"
+        
+        # Show package size
+        echo "Package size: $(du -h $PACKAGE_FILE | cut -f1)"
+    
+    - name: Push to NuGet
+      run: |
+        dotnet nuget push ./artifacts/*.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+    
+    - name: Create GitHub Release Assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./artifacts/*.nupkg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify:
+    needs: publish
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Wait for package to be indexed
+      run: |
+        echo "Waiting 2 minutes for NuGet indexing..."
+        sleep 120
+    
+    - name: Install published tool
+      run: |
+        dotnet tool install --global BlazorLore.Scaffold.Cli
+    
+    - name: Verify installation
+      run: |
+        blazor-scaffold --version
+        blazor-scaffold --help
+    
+    - name: Test basic functionality
+      run: |
+        # Create a test directory
+        mkdir test-output
+        cd test-output
+        
+        # Test component generation
+        blazor-scaffold component generate TestComponent
+        
+        # Verify file was created
+        if [ -f "TestComponent.razor" ]; then
+          echo "✅ Component generation successful"
+        else
+          echo "❌ Component generation failed"
+          exit 1
+        fi
+      shell: bash

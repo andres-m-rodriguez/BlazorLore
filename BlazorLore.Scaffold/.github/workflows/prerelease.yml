@@ -1,0 +1,94 @@
+name: Publish Pre-release
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - 'BlazorLore.Scaffold.Cli/**'
+  workflow_dispatch:
+    inputs:
+      prerelease_suffix:
+        description: 'Pre-release suffix (e.g., alpha, beta, rc)'
+        required: false
+        default: 'beta'
+        type: choice
+        options:
+          - alpha
+          - beta
+          - rc
+
+jobs:
+  publish-prerelease:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for version calculation
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    
+    - name: Calculate version
+      id: version
+      run: |
+        # Get base version from csproj
+        BASE_VERSION=$(grep -oP '(?<=<Version>)[^<]+' BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj)
+        
+        # Get commit count since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        COMMIT_COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
+        
+        # Determine suffix
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          SUFFIX="${{ inputs.prerelease_suffix }}"
+        else
+          SUFFIX="beta"
+        fi
+        
+        # Build version string
+        PRERELEASE_VERSION="${BASE_VERSION}-${SUFFIX}.${COMMIT_COUNT}"
+        
+        echo "VERSION=$PRERELEASE_VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing pre-release version: $PRERELEASE_VERSION"
+    
+    - name: Update version
+      run: |
+        sed -i "s/<Version>.*<\/Version>/<Version>${{ steps.version.outputs.VERSION }}<\/Version>/" BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+    
+    - name: Build and Test
+      run: |
+        dotnet restore BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj
+        dotnet build BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release
+        
+        if [ -d "BlazorLore.Scaffold.Cli.Tests" ]; then
+          dotnet test BlazorLore.Scaffold.Cli.Tests/BlazorLore.Scaffold.Cli.Tests.csproj -c Release
+        fi
+    
+    - name: Pack
+      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release -o ./artifacts
+    
+    - name: Push to NuGet
+      run: |
+        dotnet nuget push ./artifacts/*.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+    
+    - name: Create summary
+      run: |
+        echo "## Pre-release Published! 🚀" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Installation" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "dotnet tool install --global BlazorLore.Scaffold.Cli --version ${{ steps.version.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Note:** Pre-release versions may contain unstable features." >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,81 @@
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+
+# The packages folder can be ignored because of Package Restore
+**/[Pp]ackages/*
+
+# NuGet API keys and sensitive data
+*.apikey
+nuget.config
+.env
+.env.local
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+
+# Visual Studio Code
+.vscode/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Build results
+*.dll
+*.exe
+*.pdb
+
+# Test Results
+TestResults/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Files generated during demo mode
+TestComponent.razor
+TestComponent.razor.cs
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+
+# Local environment files
+local.settings.json
+appsettings.Development.json
