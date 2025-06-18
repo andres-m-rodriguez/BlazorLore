@@ -1,0 +1,123 @@
+name: Publish to NuGet
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'BlazorLore.Scaffold.Cli/**'
+      - '.github/workflows/publish-nuget.yml'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+        
+    - name: Get version
+      id: version
+      run: |
+        VERSION=$(grep '<Version>' BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj | sed 's/.*<Version>\(.*\)<\/Version>/\1/')
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Package version: $VERSION"
+        
+    - name: Check if version exists on NuGet
+      id: version_check
+      run: |
+        set +e
+        dotnet nuget list source
+        PACKAGE_EXISTS=$(dotnet package search BlazorLore.Scaffold.Cli --exact-match --source https://api.nuget.org/v3/index.json | grep -c "BlazorLore.Scaffold.Cli ${{ steps.version.outputs.VERSION }}")
+        
+        if [ "$PACKAGE_EXISTS" -gt 0 ]; then
+          echo "EXISTS=true" >> $GITHUB_OUTPUT
+          echo "Package version ${{ steps.version.outputs.VERSION }} already exists on NuGet"
+        else
+          echo "EXISTS=false" >> $GITHUB_OUTPUT
+          echo "Package version ${{ steps.version.outputs.VERSION }} does not exist on NuGet"
+        fi
+        
+    - name: Restore dependencies
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: dotnet restore
+      
+    - name: Build
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: dotnet build -c Release --no-restore
+      
+    - name: Run tests
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: dotnet test -c Release --no-build --verbosity normal
+      
+    - name: Test tool functionality
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: |
+        # Pack locally
+        dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./test-artifacts
+        
+        # Install locally
+        dotnet tool install --global BlazorLore.Scaffold.Cli --add-source ./test-artifacts --version ${{ steps.version.outputs.VERSION }}
+        
+        # Test basic commands
+        blazor-scaffold --version
+        blazor-scaffold --help
+        
+        # Test component generation
+        mkdir test-generation
+        cd test-generation
+        blazor-scaffold component TestComponent -c -s
+        
+        # Verify files
+        if [ -f "TestComponent.razor" ] && [ -f "TestComponent.razor.cs" ] && [ -f "TestComponent.razor.css" ]; then
+          echo "✅ Tool test passed"
+        else
+          echo "❌ Tool test failed"
+          exit 1
+        fi
+        
+        cd ..
+        
+    - name: Pack for NuGet
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
+      
+    - name: Push to NuGet
+      if: steps.version_check.outputs.EXISTS == 'false'
+      run: |
+        dotnet nuget push ./artifacts/BlazorLore.Scaffold.Cli.${{ steps.version.outputs.VERSION }}.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+          
+    - name: Create GitHub Release
+      if: steps.version_check.outputs.EXISTS == 'false'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.VERSION }}
+        name: Release v${{ steps.version.outputs.VERSION }}
+        body: |
+          ## BlazorLore Scaffold CLI v${{ steps.version.outputs.VERSION }}
+          
+          ### Installation
+          ```bash
+          dotnet tool install --global BlazorLore.Scaffold.Cli
+          ```
+          
+          ### Update
+          ```bash
+          dotnet tool update --global BlazorLore.Scaffold.Cli
+          ```
+          
+          ### What's New
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/BlazorLore.Scaffold.Cli/README.md) for details.
+          
+        files: ./artifacts/BlazorLore.Scaffold.Cli.${{ steps.version.outputs.VERSION }}.nupkg
+        draft: false
+        prerelease: false

@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --no-restore -c Release
+      
+    - name: Test
+      run: dotnet test --no-build --verbosity normal -c Release
+      
+    - name: Pack tool
+      run: dotnet pack BlazorLore.Scaffold.Cli/BlazorLore.Scaffold.Cli.csproj -c Release --no-build -o ./artifacts
+      
+    - name: Install tool locally
+      run: |
+        dotnet tool install --global BlazorLore.Scaffold.Cli --add-source ./artifacts --version 1.0.1
+        blazor-scaffold --version
+        
+    - name: Test component generation
+      run: |
+        mkdir test-output
+        cd test-output
+        
+        # Test basic component generation (NEW SYNTAX)
+        blazor-scaffold component TestComponent -o .
+        
+        # Verify basic component was created
+        if [ -f "TestComponent.razor" ]; then
+          echo "✅ Basic component generated successfully"
+        else
+          echo "❌ Basic component generation failed"
+          ls -la
+          exit 1
+        fi
+        
+        # Test component with code-behind and CSS (NEW SYNTAX)
+        blazor-scaffold component FullComponent -c -s -o .
+        
+        # Verify all files were created
+        if [ -f "FullComponent.razor" ] && [ -f "FullComponent.razor.cs" ] && [ -f "FullComponent.razor.css" ]; then
+          echo "✅ All files generated successfully"
+        else
+          echo "❌ Full component generation failed"
+          ls -la
+          exit 1
+        fi
+        
+    - name: Test service generation
+      run: |
+        cd test-output
+        
+        # Test service generation (NEW COMMAND)
+        blazor-scaffold service TestService -o .
+        
+        # Verify service files were created
+        if [ -f "TestService.cs" ] && [ -f "ITestService.cs" ]; then
+          echo "✅ Service generated successfully"
+        else
+          echo "❌ Service generation failed"
+          ls -la
+          exit 1
+        fi
+        
+    - name: Test form generation
+      run: |
+        cd test-output
+        
+        # Create a test model
+        cat > Product.cs << 'EOF'
+        using System.ComponentModel.DataAnnotations;
+        namespace TestApp.Models;
+        public class Product
+        {
+            public int Id { get; set; }
+            [Required]
+            public string Name { get; set; } = "";
+            public decimal Price { get; set; }
+        }
+        EOF
+        
+        # Test form generation (UNCHANGED SYNTAX)
+        blazor-scaffold form generate Product.cs --name ProductForm --path .
+        
+        # Verify form was created
+        if [ -f "ProductForm.razor" ]; then
+          echo "✅ Form generated successfully"
+        else
+          echo "❌ Form generation failed"
+          ls -la
+          exit 1
+        fi
+        
+    - name: Test refactoring
+      run: |
+        cd test-output
+        
+        # Create a component with inline code
+        cat > RefactorTest.razor << 'EOF'
+        @inject ILogger<RefactorTest> Logger
+        
+        <h3>RefactorTest</h3>
+        <button @onclick="HandleClick">Click me</button>
+        
+        @code {
+            private int count = 0;
+            
+            private void HandleClick()
+            {
+                count++;
+                Logger.LogInformation($"Clicked {count} times");
+            }
+        }
+        EOF
+        
+        # Test code extraction (NEW SYNTAX)
+        blazor-scaffold refactor RefactorTest.razor --extract-code
+        
+        # Verify code-behind was created
+        if [ -f "RefactorTest.razor.cs" ]; then
+          echo "✅ Code extraction successful"
+        else
+          echo "❌ Code extraction failed"
+          ls -la
+          exit 1
+        fi
+        
+    - name: Test template commands
+      run: |
+        cd test-output
+        
+        # Test template initialization
+        blazor-scaffold init-templates
+        
+        # Verify templates directory was created
+        if [ -d ".blazor-templates" ]; then
+          echo "✅ Templates initialized successfully"
+        else
+          echo "❌ Template initialization failed"
+          ls -la
+          exit 1
+        fi
+        
+        # Test listing templates
+        blazor-scaffold list-templates
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-output
+        path: test-output/
