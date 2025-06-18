@@ -30,7 +30,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.png</PackageIcon>
+    <PackageIcon>Icon.png</PackageIcon>
     <Copyright>Copyright (c) 2025 BlazorLore</Copyright>
     
     <!-- Additional metadata -->
@@ -57,8 +57,8 @@
     <!-- Include README in NuGet package -->
     <None Include="README.md" Pack="true" PackagePath="\" />
     
-    <!-- Include icon in NuGet package (when icon.png exists) -->
-    <None Include="icon.png" Pack="true" PackagePath="\" Condition="Exists('icon.png')" />
+    <!-- Include icon in NuGet package -->
+    <None Include="Icon.png" Pack="true" PackagePath="\" />
     
     <!-- Include templates in NuGet package -->
     <None Include="Templates/**/*" Pack="true" PackagePath="Templates\" />
