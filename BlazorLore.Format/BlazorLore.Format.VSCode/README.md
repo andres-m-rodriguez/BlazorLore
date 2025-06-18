@@ -13,11 +13,14 @@ A powerful formatter for Blazor and Razor components, similar to Prettier for HT
 
 ## Requirements
 
-This extension requires the BlazorLore Format CLI tool. Install it globally:
+The extension will automatically prompt you to install the BlazorLore Format CLI tool on first use. 
 
+You can also install it manually:
 ```bash
 dotnet tool install --global BlazorLore.Format.Cli
 ```
+
+Or use the command palette: `Blazor Formatter: Install/Update CLI Tool`
 
 ## Extension Settings
 

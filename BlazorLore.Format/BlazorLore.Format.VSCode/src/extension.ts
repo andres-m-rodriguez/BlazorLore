@@ -2,11 +2,25 @@ import * as vscode from 'vscode';
 import { BlazorFormattingProvider } from './formattingProvider';
 import { BlazorFormatter } from './formatter';
 import { StatusBarManager } from './statusBar';
+import { CliInstaller } from './cliInstaller';
 
 let statusBar: StatusBarManager;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     console.log('Blazor Formatter extension is now active');
+
+    // Check if CLI is installed on activation
+    const isInstalled = await CliInstaller.ensureInstalled();
+    if (!isInstalled) {
+        vscode.window.showWarningMessage(
+            'BlazorLore formatter CLI is not installed. Some features may not work correctly.',
+            'Install Now'
+        ).then(async (choice) => {
+            if (choice === 'Install Now') {
+                await CliInstaller.promptInstall();
+            }
+        });
+    }
 
     const formatter = new BlazorFormatter();
     statusBar = new StatusBarManager();
@@ -67,6 +81,21 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // Register install/update CLI command
+    const installCliCommand = vscode.commands.registerCommand('blazorFormatter.installCli', async () => {
+        try {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'BlazorLore Formatter',
+                cancellable: false
+            }, async (progress) => {
+                await CliInstaller.install(progress);
+            });
+        } catch (error: any) {
+            vscode.window.showErrorMessage(error.message);
+        }
+    });
+
     // Format on save
     const onSaveDisposable = vscode.workspace.onWillSaveTextDocument(async (event) => {
         const config = vscode.workspace.getConfiguration('blazorFormatter');
@@ -109,6 +138,7 @@ export function activate(context: vscode.ExtensionContext) {
         disposable,
         formatCommand,
         createConfigCommand,
+        installCliCommand,
         onSaveDisposable,
         statusBar
     );

@@ -110,6 +110,16 @@ export class BlazorFormatter {
             const proc = cp.execFile(executable, args, options, (error, stdout, stderr) => {
                 if (error) {
                     if (error.code === 'ENOENT') {
+                        // Try to help user install the formatter
+                        vscode.window.showErrorMessage(
+                            `Formatter not found. Would you like to install it?`,
+                            'Install'
+                        ).then(async (choice) => {
+                            if (choice === 'Install') {
+                                const { CliInstaller } = await import('./cliInstaller');
+                                await CliInstaller.promptInstall();
+                            }
+                        });
                         reject(new Error(`Formatter not found at: ${executable}. Make sure 'blazorfmt' is installed.`));
                     } else {
                         reject(new Error(`Formatter failed: ${stderr || error.message}`));

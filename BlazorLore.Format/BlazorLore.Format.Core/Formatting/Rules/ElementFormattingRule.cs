@@ -41,39 +41,35 @@ public class ElementFormattingRule : IFormattingRule
         context.Write($"<{element.TagName}");
         var attributesOnNewLine = FormatAttributes(element, context);
         
-        // Check if we have simple inline content
-        var hasOnlyTextAndExpressions = element.Children.All(c => 
-            c is TextNode || (c is CodeBlockNode cb && cb.Type == CodeBlockType.Expression));
+        // Always write ">" on the same line as the tag name for elements without attributes
+        context.Write(">");
         
-        // Check if we should break content to new line
-        var shouldBreakContent = ShouldBreakContent(element, context.Options, attributesOnNewLine) && 
-                                !hasOnlyTextAndExpressions;
-        
-        if (shouldBreakContent || (HasBlockLevelChildren(element) && !hasOnlyTextAndExpressions))
+        // Determine if we need a line break after the opening tag
+        var hasBlockContent = HasBlockLevelChildren(element);
+        var hasOnlyWhitespace = element.Children.All(c => 
+            c is TextNode textNode && string.IsNullOrWhiteSpace(textNode.Content));
+            
+        if (hasBlockContent && !hasOnlyWhitespace)
         {
-            context.WriteLine(">");
-        }
-        else
-        {
-            context.Write(">");
+            context.FinishLine();
         }
     }
 
     private void FormatClosingTag(ElementNode element, FormattingContext context)
     {
-        // Check if we have simple inline content
-        var hasOnlyTextAndExpressions = element.Children.All(c => 
-            c is TextNode || (c is CodeBlockNode cb && cb.Type == CodeBlockType.Expression));
+        // Check if we need the closing tag on a new line
+        var hasBlockContent = HasBlockLevelChildren(element);
+        var hasOnlyWhitespace = element.Children.All(c => 
+            c is TextNode textNode && string.IsNullOrWhiteSpace(textNode.Content));
             
-        var shouldBreakContent = ShouldBreakContent(element, context.Options, false) && 
-                                !hasOnlyTextAndExpressions;
-        
-        if ((HasBlockLevelChildren(element) || shouldBreakContent) && !hasOnlyTextAndExpressions)
+        if (hasBlockContent && !hasOnlyWhitespace)
         {
+            // Closing tag on new line for elements with block content
             context.WriteLine($"</{element.TagName}>");
         }
         else
         {
+            // Closing tag inline for empty elements or text-only content
             context.Write($"</{element.TagName}>");
             context.FinishLine();
         }
@@ -150,6 +146,12 @@ public class ElementFormattingRule : IFormattingRule
     {
         if (!element.Children.Any())
             return;
+            
+        // Skip formatting if all children are just whitespace
+        var hasOnlyWhitespace = element.Children.All(c => 
+            c is TextNode textNode && string.IsNullOrWhiteSpace(textNode.Content));
+        if (hasOnlyWhitespace)
+            return;
 
         // Check if element has simple inline content
         var hasOnlyTextAndExpressions = element.Children.All(c => 
@@ -220,5 +222,16 @@ public class ElementFormattingRule : IFormattingRule
     private bool HasBlockLevelChildren(ElementNode element)
     {
         return element.Children.Any(c => c is ElementNode || c is CodeBlockNode);
+    }
+    
+    private bool IsEmptyElement(ElementNode element)
+    {
+        if (!element.Children.Any())
+            return true;
+            
+        // Check if all children are whitespace text nodes or empty elements
+        return element.Children.All(c => 
+            (c is TextNode textNode && string.IsNullOrWhiteSpace(textNode.Content)) ||
+            (c is ElementNode childElement && IsEmptyElement(childElement)));
     }
 }

@@ -90,26 +90,17 @@ public class SimpleRazorParser
 
         while (position < content.Length)
         {
-            var codeBlockMatch = CodeBlockRegex.Match(content, position);
-            var expressionMatch = ExpressionRegex.Match(content, position);
-            var elementMatch = ElementRegex.Match(content, position);
-            var directiveMatch = DirectiveRegex.Match(content, position);
-            var ifBlockMatch = IfBlockRegex.Match(content, position);
-
-            var matches = new[]
+            // Look for both @ symbols and < symbols
+            var atIndex = content.IndexOf('@', position);
+            var tagStartIndex = content.IndexOf('<', position);
+            
+            // Determine which comes first
+            int nextIndex;
+            bool isRazor = false;
+            
+            if (atIndex == -1 && tagStartIndex == -1)
             {
-                (match: directiveMatch, type: "directive"),
-                (match: ifBlockMatch, type: "ifblock"),
-                (match: codeBlockMatch, type: "codeblock"),
-                (match: expressionMatch, type: "expression"),
-                (match: elementMatch, type: "element")
-            }
-            .Where(m => m.match.Success && m.match.Index >= position)
-            .OrderBy(m => m.match.Index)
-            .FirstOrDefault();
-
-            if (matches.match == null || !matches.match.Success)
-            {
+                // No more tags or razor expressions, add remaining content as text
                 var remainingText = content.Substring(position);
                 if (!string.IsNullOrWhiteSpace(remainingText))
                 {
@@ -122,90 +113,376 @@ public class SimpleRazorParser
                 }
                 break;
             }
-
-            if (matches.match.Index > position)
+            else if (atIndex == -1)
             {
-                var textBefore = content.Substring(position, matches.match.Index - position);
+                nextIndex = tagStartIndex;
+            }
+            else if (tagStartIndex == -1)
+            {
+                nextIndex = atIndex;
+                isRazor = true;
+            }
+            else
+            {
+                nextIndex = Math.Min(atIndex, tagStartIndex);
+                isRazor = (nextIndex == atIndex);
+            }
+
+            // Add text before the next element
+            if (nextIndex > position)
+            {
+                var textBefore = content.Substring(position, nextIndex - position);
                 if (!string.IsNullOrWhiteSpace(textBefore))
                 {
                     nodes.Add(new TextNode
                     {
                         Content = textBefore,
                         StartPosition = position,
-                        EndPosition = matches.match.Index
+                        EndPosition = nextIndex
                     });
                 }
             }
 
-            switch (matches.type)
+            if (isRazor)
             {
-                case "directive":
-                    nodes.Add(new CodeBlockNode
-                    {
-                        Code = $"{matches.match.Groups["directive"].Value} {matches.match.Groups["value"].Value}",
-                        Type = CodeBlockType.Directive,
-                        StartPosition = matches.match.Index,
-                        EndPosition = matches.match.Index + matches.match.Length
-                    });
-                    break;
-                    
-                case "codeblock":
-                    nodes.Add(new CodeBlockNode
-                    {
-                        Code = matches.match.Groups["code"].Value,
-                        Type = CodeBlockType.CodeBlock,
-                        StartPosition = matches.match.Index,
-                        EndPosition = matches.match.Index + matches.match.Length
-                    });
-                    break;
+                // Handle Razor expressions
+                var codeBlockMatch = CodeBlockRegex.Match(content, nextIndex);
+                var expressionMatch = ExpressionRegex.Match(content, nextIndex);
+                var directiveMatch = DirectiveRegex.Match(content, nextIndex);
+                var ifBlockMatch = IfBlockRegex.Match(content, nextIndex);
 
-                case "expression":
-                    nodes.Add(new CodeBlockNode
-                    {
-                        Code = matches.match.Groups["expr"].Value,
-                        Type = CodeBlockType.Expression,
-                        StartPosition = matches.match.Index,
-                        EndPosition = matches.match.Index + matches.match.Length
-                    });
-                    break;
+                var razorMatches = new[]
+                {
+                    (match: directiveMatch, type: "directive"),
+                    (match: ifBlockMatch, type: "ifblock"),
+                    (match: codeBlockMatch, type: "codeblock"),
+                    (match: expressionMatch, type: "expression")
+                }
+                .Where(m => m.match.Success && m.match.Index == nextIndex)
+                .OrderBy(m => m.match.Index)
+                .FirstOrDefault();
 
-                case "element":
-                    var elementNode = ParseElement(matches.match, content);
-                    if (elementNode != null)
+                if (razorMatches.match != null && razorMatches.match.Success)
+                {
+                    switch (razorMatches.type)
                     {
-                        nodes.Add(elementNode);
-                    }
-                    break;
-                    
-                case "ifblock":
-                    // Find the matching closing brace
-                    var ifStart = matches.match.Index;
-                    var braceStart = content.IndexOf('{', ifStart);
-                    if (braceStart != -1)
-                    {
-                        var braceEnd = FindMatchingBrace(content, braceStart);
-                        if (braceEnd != -1)
-                        {
-                            var ifContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
-                            var ifCondition = matches.match.Groups["condition"].Value;
+                        case "directive":
                             nodes.Add(new CodeBlockNode
                             {
-                                Code = $"if({ifCondition})\n{{\n{ifContent}\n}}",
-                                Type = CodeBlockType.IfBlock,
-                                StartPosition = ifStart,
-                                EndPosition = braceEnd + 1
+                                Code = $"{razorMatches.match.Groups["directive"].Value} {razorMatches.match.Groups["value"].Value}",
+                                Type = CodeBlockType.Directive,
+                                StartPosition = razorMatches.match.Index,
+                                EndPosition = razorMatches.match.Index + razorMatches.match.Length
                             });
-                            position = braceEnd + 1;
+                            position = razorMatches.match.Index + razorMatches.match.Length;
                             continue;
-                        }
-                    }
-                    break;
-            }
+                            
+                        case "codeblock":
+                            nodes.Add(new CodeBlockNode
+                            {
+                                Code = razorMatches.match.Groups["code"].Value,
+                                Type = CodeBlockType.CodeBlock,
+                                StartPosition = razorMatches.match.Index,
+                                EndPosition = razorMatches.match.Index + razorMatches.match.Length
+                            });
+                            position = razorMatches.match.Index + razorMatches.match.Length;
+                            continue;
 
-            position = matches.match.Index + matches.match.Length;
+                        case "expression":
+                            nodes.Add(new CodeBlockNode
+                            {
+                                Code = razorMatches.match.Groups["expr"].Value,
+                                Type = CodeBlockType.Expression,
+                                StartPosition = razorMatches.match.Index,
+                                EndPosition = razorMatches.match.Index + razorMatches.match.Length
+                            });
+                            position = razorMatches.match.Index + razorMatches.match.Length;
+                            continue;
+                            
+                        case "ifblock":
+                            var ifStart = razorMatches.match.Index;
+                            var braceStart = content.IndexOf('{', ifStart);
+                            if (braceStart != -1)
+                            {
+                                var braceEnd = FindMatchingBrace(content, braceStart);
+                                if (braceEnd != -1)
+                                {
+                                    var ifContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
+                                    var ifCondition = razorMatches.match.Groups["condition"].Value;
+                                    nodes.Add(new CodeBlockNode
+                                    {
+                                        Code = $"if({ifCondition})\n{{\n{ifContent}\n}}",
+                                        Type = CodeBlockType.IfBlock,
+                                        StartPosition = ifStart,
+                                        EndPosition = braceEnd + 1
+                                    });
+                                    position = braceEnd + 1;
+                                    continue;
+                                }
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    // Couldn't parse as Razor expression, treat @ as text
+                    nodes.Add(new TextNode
+                    {
+                        Content = "@",
+                        StartPosition = nextIndex,
+                        EndPosition = nextIndex + 1
+                    });
+                    position = nextIndex + 1;
+                }
+            }
+            else
+            {
+                // Try to parse element manually
+                var elementResult = ParseElementManually(content, tagStartIndex);
+                if (elementResult != null)
+                {
+                    nodes.Add(elementResult.Element);
+                    position = elementResult.EndPosition;
+                }
+                else
+                {
+                    // Couldn't parse as element, treat as text
+                    nodes.Add(new TextNode
+                    {
+                        Content = content[tagStartIndex].ToString(),
+                        StartPosition = tagStartIndex,
+                        EndPosition = tagStartIndex + 1
+                    });
+                    position = tagStartIndex + 1;
+                }
+            }
         }
 
         return nodes;
+    }
+
+    private class ElementParseResult
+    {
+        public ElementNode Element { get; set; }
+        public int EndPosition { get; set; }
+    }
+
+    private ElementParseResult? ParseElementManually(string content, int startPosition)
+    {
+        if (startPosition >= content.Length || content[startPosition] != '<')
+            return null;
+
+        var position = startPosition + 1;
+
+        // Skip whitespace after <
+        while (position < content.Length && char.IsWhiteSpace(content[position]))
+            position++;
+
+        // Get tag name
+        var tagNameStart = position;
+        while (position < content.Length && (char.IsLetterOrDigit(content[position]) || content[position] == '-' || content[position] == '_'))
+            position++;
+
+        if (position == tagNameStart)
+            return null; // No tag name found
+
+        var tagName = content.Substring(tagNameStart, position - tagNameStart);
+
+        // Parse attributes
+        var attributes = new List<AttributeNode>();
+        var tagEndPosition = position;
+        var isSelfClosing = false;
+
+        // Find the end of the opening tag
+        while (position < content.Length)
+        {
+            // Skip whitespace
+            while (position < content.Length && char.IsWhiteSpace(content[position]))
+                position++;
+
+            if (position >= content.Length)
+                return null;
+
+            // Check for end of tag
+            if (content[position] == '>')
+            {
+                tagEndPosition = position + 1;
+                break;
+            }
+            else if (position + 1 < content.Length && content[position] == '/' && content[position + 1] == '>')
+            {
+                isSelfClosing = true;
+                tagEndPosition = position + 2;
+                break;
+            }
+            else
+            {
+                // Parse attribute
+                var attrResult = ParseAttributeManually(content, position);
+                if (attrResult != null)
+                {
+                    attributes.AddRange(attrResult.Attributes);
+                    position = attrResult.EndPosition;
+                }
+                else
+                {
+                    position++; // Skip unknown character
+                }
+            }
+        }
+
+        var element = new ElementNode
+        {
+            TagName = tagName,
+            IsSelfClosing = isSelfClosing,
+            StartPosition = startPosition,
+            Attributes = attributes,
+            Children = new List<BlazorNode>()
+        };
+
+        if (isSelfClosing)
+        {
+            element.EndPosition = tagEndPosition;
+            return new ElementParseResult { Element = element, EndPosition = tagEndPosition };
+        }
+
+        // Parse content and find closing tag
+        var contentStart = tagEndPosition;
+        var closingTag = $"</{tagName}>";
+        var depth = 1;
+        var searchPosition = contentStart;
+
+        // Look for matching closing tag, accounting for nested elements of the same type
+        while (searchPosition < content.Length && depth > 0)
+        {
+            var nextOpenTag = content.IndexOf($"<{tagName}", searchPosition);
+            var nextCloseTag = content.IndexOf(closingTag, searchPosition);
+
+            if (nextCloseTag == -1)
+                return null; // No closing tag found
+
+            // Check if there's another opening tag before the closing tag
+            if (nextOpenTag != -1 && nextOpenTag < nextCloseTag)
+            {
+                // Make sure it's actually a tag (followed by space, >, or /)
+                var charAfterTagIndex = nextOpenTag + 1 + tagName.Length;
+                if (charAfterTagIndex < content.Length)
+                {
+                    var nextChar = content[charAfterTagIndex];
+                    if (char.IsWhiteSpace(nextChar) || nextChar == '>' || nextChar == '/')
+                    {
+                        depth++;
+                        searchPosition = nextOpenTag + tagName.Length + 1;
+                        continue;
+                    }
+                }
+            }
+
+            if (nextCloseTag != -1)
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    var innerContent = content.Substring(contentStart, nextCloseTag - contentStart);
+                    element.Children = ParseContent(innerContent);
+                    element.EndPosition = nextCloseTag + closingTag.Length;
+                    return new ElementParseResult { Element = element, EndPosition = nextCloseTag + closingTag.Length };
+                }
+                searchPosition = nextCloseTag + closingTag.Length;
+            }
+        }
+
+        return null; // Couldn't find matching closing tag
+    }
+
+    private class AttributeParseResult
+    {
+        public List<AttributeNode> Attributes { get; set; } = new List<AttributeNode>();
+        public int EndPosition { get; set; }
+    }
+
+    private AttributeParseResult? ParseAttributeManually(string content, int startPosition)
+    {
+        var position = startPosition;
+        var result = new AttributeParseResult();
+
+        // Skip whitespace
+        while (position < content.Length && char.IsWhiteSpace(content[position]))
+            position++;
+
+        if (position >= content.Length)
+            return null;
+
+        // Get attribute name
+        var nameStart = position;
+        while (position < content.Length && 
+               (char.IsLetterOrDigit(content[position]) || 
+                content[position] == '-' || 
+                content[position] == '_' || 
+                content[position] == ':' ||
+                content[position] == '@'))
+        {
+            position++;
+        }
+
+        if (position == nameStart)
+            return null;
+
+        var attrName = content.Substring(nameStart, position - nameStart);
+
+        // Skip whitespace after name
+        while (position < content.Length && char.IsWhiteSpace(content[position]))
+            position++;
+
+        // Check for = sign
+        if (position < content.Length && content[position] == '=')
+        {
+            position++; // Skip =
+
+            // Skip whitespace after =
+            while (position < content.Length && char.IsWhiteSpace(content[position]))
+                position++;
+
+            // Get quote character
+            if (position < content.Length && (content[position] == '"' || content[position] == '\''))
+            {
+                var quoteChar = content[position];
+                position++; // Skip opening quote
+
+                var valueStart = position;
+                while (position < content.Length && content[position] != quoteChar)
+                    position++;
+
+                if (position < content.Length)
+                {
+                    var attrValue = content.Substring(valueStart, position - valueStart);
+                    position++; // Skip closing quote
+
+                    result.Attributes.Add(new AttributeNode
+                    {
+                        Name = attrName,
+                        Value = attrValue,
+                        IsDirective = attrName.StartsWith("@")
+                    });
+                    result.EndPosition = position;
+                    return result;
+                }
+            }
+        }
+        else
+        {
+            // Boolean attribute
+            result.Attributes.Add(new AttributeNode
+            {
+                Name = attrName,
+                Value = null,
+                IsDirective = attrName.StartsWith("@")
+            });
+            result.EndPosition = position;
+            return result;
+        }
+
+        return null;
     }
 
     private ElementNode? ParseElement(Match match, string content)
