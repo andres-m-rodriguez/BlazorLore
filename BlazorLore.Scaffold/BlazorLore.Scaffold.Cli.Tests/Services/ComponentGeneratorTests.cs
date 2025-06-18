@@ -40,53 +40,100 @@ public class ComponentGeneratorTests : IDisposable
     
     private void CreateMockTemplates()
     {
-        // Component.razor.scriban
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.scriban"), 
-@"@page ""/{{ name | string.downcase }}""
-{{ if has_code_behind }}
-@inherits {{ name }}Base
-{{ end }}
+        // Create mock templates if the source templates are not available
+        var razorTemplate = Path.Combine(_templateDirectory, "Component.razor.scriban");
+        if (!File.Exists(razorTemplate))
+        {
+            var razorContent = @"{{ if has_code_behind }}@inherits {{ name }}Base{{ else }}@inject ILogger<{{ name }}> Logger
+@inject NavigationManager Navigation{{ end }}
 
-<div class=""{{ name | string.downcase }}-container"">
+<div class=""{{ name | string.downcase }}"">
     <h3>{{ name }}</h3>
+    
     <p>This is the {{ name }} component.</p>
+    
+    <button class=""btn btn-primary"" @onclick=""HandleClick"">
+        Click me
+    </button>
+    
+    <p>Counter: @_counter</p>
 </div>
 
 {{ if !has_code_behind }}
 @code {
+    private int _counter = 0;
+
     protected override void OnInitialized()
     {
-        base.OnInitialized();
+        Logger.LogInformation($""{{ name }} initialized"");
     }
-}
-{{ end }}");
 
-        // Component.razor.cs.scriban
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.cs.scriban"), 
-@"using Microsoft.AspNetCore.Components;
+    private void HandleClick()
+    {
+        _counter++;
+        Logger.LogInformation($""Button clicked. Counter: {_counter}"");
+    }
+}{{ end }}";
+            File.WriteAllText(razorTemplate, razorContent);
+        }
+        
+        var codeTemplate = Path.Combine(_templateDirectory, "Component.razor.cs.scriban");
+        if (!File.Exists(codeTemplate))
+        {
+            var codeContent = @"using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace {{ namespace }};
 
 public partial class {{ name }}Base : ComponentBase
 {
+    [Inject]
+    public ILogger<{{ name }}> Logger { get; set; } = default!;
+    
+    [Inject]
+    public NavigationManager Navigation { get; set; } = default!;
+
+    private int _counter = 0;
+
     protected override void OnInitialized()
     {
-        base.OnInitialized();
+        Logger.LogInformation($""{{ name }} initialized"");
     }
-}");
 
-        // Component.razor.css.scriban
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.css.scriban"), 
-@".{{ name | string.downcase }}-container {
+    private void HandleClick()
+    {
+        _counter++;
+        Logger.LogInformation($""Button clicked. Counter: {_counter}"");
+    }
+}";
+            File.WriteAllText(codeTemplate, codeContent);
+        }
+        
+        var cssTemplate = Path.Combine(_templateDirectory, "Component.razor.css.scriban");
+        if (!File.Exists(cssTemplate))
+        {
+            var cssContent = @".{{ name | string.downcase }} {
     padding: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    background-color: #f8f9fa;
 }
 
-.{{ name | string.downcase }}-container h3 {
-    margin-top: 0;
-    color: #333;
-}");
+.{{ name | string.downcase }} h3 {
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.{{ name | string.downcase }} button {
+    margin: 0.5rem 0;
+}
+
+.{{ name | string.downcase }} p {
+    margin: 0.5rem 0;
+    color: #6c757d;
+}";
+            File.WriteAllText(cssTemplate, cssContent);
+        }
     }
     
     [Fact]
@@ -107,10 +154,15 @@ public partial class {{ name }}Base : ComponentBase
         File.Exists(razorFile).Should().BeTrue();
         
         var content = await File.ReadAllTextAsync(razorFile);
-        content.Should().Contain($"@page \"/testcomponent\"");
+        content.Should().Contain($"<div class=\"{componentName.ToLower()}\">");
         content.Should().Contain($"<h3>{componentName}</h3>");
         content.Should().Contain("@code {");
+        content.Should().Contain("@inject ILogger<TestComponent> Logger");
+        content.Should().Contain("@inject NavigationManager Navigation");
         content.Should().NotContain("@inherits");
+        content.Should().Contain("private int _counter = 0;");
+        content.Should().Contain("protected override void OnInitialized()");
+        content.Should().Contain("private void HandleClick()");
     }
     
     [Fact]
@@ -132,6 +184,10 @@ public partial class {{ name }}Base : ComponentBase
         var razorContent = await File.ReadAllTextAsync(razorFile);
         razorContent.Should().Contain("@inherits UserProfileBase");
         razorContent.Should().NotContain("@code {");
+        razorContent.Should().NotContain("@inject ILogger");
+        razorContent.Should().NotContain("@inject NavigationManager");
+        razorContent.Should().Contain($"<div class=\"{componentName.ToLower()}\">");
+        razorContent.Should().Contain($"<h3>{componentName}</h3>");
         
         // Check code-behind file
         var codeBehindFile = Path.Combine(outputPath, $"{componentName}.razor.cs");
@@ -140,7 +196,12 @@ public partial class {{ name }}Base : ComponentBase
         var codeBehindContent = await File.ReadAllTextAsync(codeBehindFile);
         codeBehindContent.Should().Contain("namespace MyApp.Components;");
         codeBehindContent.Should().Contain($"public partial class {componentName}Base : ComponentBase");
+        codeBehindContent.Should().Contain("[Inject]");
+        codeBehindContent.Should().Contain("public ILogger<UserProfile> Logger { get; set; } = default!;");
+        codeBehindContent.Should().Contain("public NavigationManager Navigation { get; set; } = default!;");
+        codeBehindContent.Should().Contain("private int _counter = 0;");
         codeBehindContent.Should().Contain("protected override void OnInitialized()");
+        codeBehindContent.Should().Contain("private void HandleClick()");
     }
     
     [Fact]
@@ -160,9 +221,11 @@ public partial class {{ name }}Base : ComponentBase
         File.Exists(cssFile).Should().BeTrue();
         
         var cssContent = await File.ReadAllTextAsync(cssFile);
-        cssContent.Should().Contain(".styledbutton-container");
+        cssContent.Should().Contain(".styledbutton");
         cssContent.Should().Contain("padding: 1rem;");
-        cssContent.Should().Contain(".styledbutton-container h3");
+        cssContent.Should().Contain(".styledbutton h3");
+        cssContent.Should().Contain("color: #495057;");
+        cssContent.Should().Contain("margin-bottom: 1rem;");
     }
     
     [Fact]
@@ -220,6 +283,7 @@ public partial class {{ name }}Base : ComponentBase
         File.Exists(razorFile).Should().BeTrue();
         
         var content = await File.ReadAllTextAsync(razorFile);
+        content.Should().Contain($"<div class=\"user-profile_component123\">");
         content.Should().Contain($"<h3>{componentName}</h3>");
     }
     
@@ -242,6 +306,8 @@ public partial class {{ name }}Base : ComponentBase
         // Assert
         var content = await File.ReadAllTextAsync(existingFile);
         content.Should().NotBe("OLD CONTENT");
+        content.Should().Contain($"<div class=\"{componentName.ToLower()}\">");
         content.Should().Contain($"<h3>{componentName}</h3>");
+        content.Should().Contain("@inject ILogger<ExistingComponent> Logger");
     }
 }

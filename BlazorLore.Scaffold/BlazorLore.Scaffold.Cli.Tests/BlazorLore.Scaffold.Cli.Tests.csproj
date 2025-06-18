@@ -28,4 +28,12 @@
     <ProjectReference Include="..\BlazorLore.Scaffold.Cli\BlazorLore.Scaffold.Cli.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy templates from the main project to test output directory -->
+    <None Include="..\BlazorLore.Scaffold.Cli\Templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Templates\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -25,49 +25,92 @@ public class FormGeneratorTests : IDisposable
     
     public void Dispose()
     {
-        if (Directory.Exists(_testDirectory))
+        try
         {
-            Directory.Delete(_testDirectory, true);
+            if (Directory.Exists(_testDirectory))
+            {
+                Directory.Delete(_testDirectory, true);
+            }
+        }
+        catch
+        {
+            // Ignore errors during cleanup
         }
         
-        // Clean up templates directory
-        var templatesRoot = Path.GetDirectoryName(_templateDirectory);
-        if (templatesRoot != null && Directory.Exists(templatesRoot))
+        try
         {
-            Directory.Delete(templatesRoot, true);
+            // Clean up templates directory
+            var templatesRoot = Path.GetDirectoryName(_templateDirectory);
+            if (templatesRoot != null && Directory.Exists(templatesRoot))
+            {
+                Directory.Delete(templatesRoot, true);
+            }
+        }
+        catch
+        {
+            // Ignore errors during cleanup
         }
     }
     
     private void CreateMockTemplate()
     {
-        // Form.razor.scriban
-        var formTemplate = @"@using {{ model_info.namespace }}
+        // Copy templates from the source project to the test assembly's output directory
+        var sourceTemplatesPath = Path.Combine(
+            Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+            "..", "..", "..", "..", "..",
+            "BlazorLore.Scaffold.Cli", "Templates", "Form", "Form.razor.scriban"
+        );
+        
+        // Normalize the path
+        sourceTemplatesPath = Path.GetFullPath(sourceTemplatesPath);
+        
+        if (File.Exists(sourceTemplatesPath))
+        {
+            var content = File.ReadAllText(sourceTemplatesPath);
+            File.WriteAllText(Path.Combine(_templateDirectory, "Form.razor.scriban"), content);
+        }
+        else
+        {
+            // If source templates not found, create a simple mock template for testing
+            var mockTemplate = @"@using System.ComponentModel.DataAnnotations
+@inject ILogger<{{ form_name }}> Logger
 
 <EditForm Model=""@{{ model_instance }}"" OnValidSubmit=""@{{ submit_action }}"">
     <DataAnnotationsValidator />
     <ValidationSummary />
-    
-    <h3>{{ form_name }}</h3>
-    
-    {{ for prop in model_info.properties }}
-    <div class=""form-group"">
-        <label for=""{{ prop.name }}"">{{ prop.name }}:</label>
-        {{ if prop.type == ""string"" || prop.type == ""string?"" }}
-        <InputText id=""{{ prop.name }}"" @bind-Value=""{{ model_instance }}.{{ prop.name }}"" class=""form-control"" />
-        {{ else if prop.type == ""int"" || prop.type == ""int?"" }}
-        <InputNumber id=""{{ prop.name }}"" @bind-Value=""{{ model_instance }}.{{ prop.name }}"" class=""form-control"" />
-        {{ else if prop.type == ""DateTime"" || prop.type == ""DateTime?"" }}
-        <InputDate id=""{{ prop.name }}"" @bind-Value=""{{ model_instance }}.{{ prop.name }}"" class=""form-control"" />
-        {{ else if prop.type == ""bool"" || prop.type == ""bool?"" }}
-        <InputCheckbox id=""{{ prop.name }}"" @bind-Value=""{{ model_instance }}.{{ prop.name }}"" class=""form-check-input"" />
-        {{ else }}
-        <InputText id=""{{ prop.name }}"" @bind-Value=""{{ model_instance }}.{{ prop.name }}"" class=""form-control"" />
+
+    <div class=""form-container"">
+        <h3>{{ if is_edit_form }}Edit {{ model_info.name }}{{ else }}Create {{ model_info.name }}{{ end }}</h3>
+
+        {{ for property in model_info.properties }}
+        <div class=""form-group"">
+            <label for=""{{ property.name }}"">{{ property.name }}:</label>
+            {{ if property.type == ""string"" || property.type == ""string?"" }}
+            <InputText id=""{{ property.name }}"" class=""form-control"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ else if property.type == ""int"" || property.type == ""int?"" }}
+            <InputNumber id=""{{ property.name }}"" class=""form-control"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ else if property.type == ""decimal"" || property.type == ""decimal?"" }}
+            <InputNumber id=""{{ property.name }}"" class=""form-control"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ else if property.type == ""DateTime"" || property.type == ""DateTime?"" }}
+            <InputDate id=""{{ property.name }}"" class=""form-control"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ else if property.type == ""bool"" || property.type == ""bool?"" }}
+            <InputCheckbox id=""{{ property.name }}"" class=""form-check-input"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ else }}
+            <InputText id=""{{ property.name }}"" class=""form-control"" @bind-Value=""{{ model_instance }}.{{ property.name }}"" />
+            {{ end }}
+            <ValidationMessage For=""@(() => {{ model_instance }}.{{ property.name }})"" />
+        </div>
         {{ end }}
-        <ValidationMessage For=""@(() => {{ model_instance }}.{{ prop.name }})"" />
+
+        <div class=""form-group"">
+            <button type=""submit"" class=""btn btn-primary"">
+                {{ if is_edit_form }}Update{{ else }}Create{{ end }}
+            </button>
+            <button type=""button"" class=""btn btn-secondary"" @onclick=""Cancel"">
+                Cancel
+            </button>
+        </div>
     </div>
-    {{ end }}
-    
-    <button type=""submit"" class=""btn btn-primary"">{{ if is_edit_form }}Update{{ else }}Create{{ end }}</button>
 </EditForm>
 
 @code {
@@ -76,11 +119,76 @@ public class FormGeneratorTests : IDisposable
     {{ else }}
     private {{ model_info.name }} {{ model_instance }} = new();
     {{ end }}
-    
-    [Parameter] public EventCallback<{{ model_info.name }}> {{ submit_action }} { get; set; }
-}";
+
+    [Parameter] public EventCallback<{{ model_info.name }}> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task {{ submit_action }}()
+    {
+        Logger.LogInformation($""{{ if is_edit_form }}Updating{{ else }}Creating{{ end }} {{ model_info.name }}"");
         
-        File.WriteAllText(Path.Combine(_templateDirectory, "Form.razor.scriban"), formTemplate);
+        if (OnSubmit.HasDelegate)
+        {
+            await OnSubmit.InvokeAsync({{ model_instance }});
+        }
+        
+        {{ if !is_edit_form }}
+        // Reset form for new entry
+        {{ model_instance }} = new();
+        {{ end }}
+    }
+
+    private async Task Cancel()
+    {
+        if (OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+}
+
+<style>
+    .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+
+    .form-check-input {
+        margin-top: 8px;
+    }
+
+    .btn {
+        margin-right: 10px;
+    }
+
+    .validation-message {
+        color: #dc3545;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+</style>";
+            
+            File.WriteAllText(Path.Combine(_templateDirectory, "Form.razor.scriban"), mockTemplate);
+        }
     }
     
     [Fact]
@@ -113,11 +221,16 @@ public class FormGeneratorTests : IDisposable
         File.Exists(formFile).Should().BeTrue();
         
         var content = await File.ReadAllTextAsync(formFile);
-        content.Should().Contain("@using MyApp.Models");
-        content.Should().Contain("<h3>ProductCreateForm</h3>");
+        content.Should().Contain("@using System.ComponentModel.DataAnnotations");
+        content.Should().Contain("@inject ILogger<ProductCreateForm> Logger");
+        content.Should().Contain("<h3>Create Product</h3>");
         content.Should().Contain("private Product product = new();");
-        content.Should().Contain("<button type=\"submit\" class=\"btn btn-primary\">Create</button>");
-        content.Should().Contain("EventCallback<Product> HandleSubmit");
+        // Check button exists with proper text, ignoring exact whitespace
+        content.Should().Contain("<button type=\"submit\" class=\"btn btn-primary\">");
+        content.Should().Contain("Create");
+        content.Should().Contain("</button>");
+        content.Should().Contain("EventCallback<Product> OnSubmit");
+        content.Should().Contain("<div class=\"form-container\">");
     }
     
     [Fact]
@@ -148,8 +261,12 @@ public class FormGeneratorTests : IDisposable
         
         content.Should().Contain("[Parameter] public User user { get; set; } = new();");
         content.Should().NotContain("private User user = new();");
-        content.Should().Contain("<button type=\"submit\" class=\"btn btn-primary\">Update</button>");
-        content.Should().Contain("EventCallback<User> HandleUpdate");
+        // Check button exists with proper text, ignoring exact whitespace
+        content.Should().Contain("<button type=\"submit\" class=\"btn btn-primary\">");
+        content.Should().Contain("Update");
+        content.Should().Contain("</button>");
+        content.Should().Contain("EventCallback<User> OnSubmit");
+        content.Should().Contain("<h3>Edit User</h3>");
     }
     
     [Fact]
@@ -181,8 +298,10 @@ public class FormGeneratorTests : IDisposable
         
         content.Should().Contain("contact.Email");
         content.Should().Contain("contact.Age");
-        content.Should().Contain("InputText");
-        content.Should().Contain("InputNumber");
+        content.Should().Contain("<InputText id=\"Email\"");
+        content.Should().Contain("<InputNumber id=\"Age\"");
+        content.Should().Contain("<label for=\"Email\">Email:</label>");
+        content.Should().Contain("<label for=\"Age\">Age:</label>");
     }
     
     [Fact]
@@ -214,14 +333,16 @@ public class FormGeneratorTests : IDisposable
         var formFile = Path.Combine(outputPath, $"{formName}.razor");
         var content = await File.ReadAllTextAsync(formFile);
         
-        content.Should().Contain("InputText");
-        content.Should().Contain("InputNumber");
-        content.Should().Contain("InputDate");
-        content.Should().Contain("InputCheckbox");
+        content.Should().Contain("<InputText id=\"Text\"");
+        content.Should().Contain("<InputNumber id=\"Number\"");
+        content.Should().Contain("<InputDate id=\"Date\"");
+        content.Should().Contain("<InputCheckbox id=\"IsEnabled\"");
+        content.Should().Contain("<InputNumber id=\"Amount\"");
         content.Should().Contain("<label for=\"Text\">Text:</label>");
         content.Should().Contain("<label for=\"Number\">Number:</label>");
         content.Should().Contain("<label for=\"Date\">Date:</label>");
         content.Should().Contain("<label for=\"IsEnabled\">IsEnabled:</label>");
+        content.Should().Contain("<label for=\"Amount\">Amount:</label>");
     }
     
     [Fact]
@@ -307,8 +428,8 @@ public class FormGeneratorTests : IDisposable
         
         content.Should().Contain("<DataAnnotationsValidator />");
         content.Should().Contain("<ValidationSummary />");
-        content.Should().Contain("ValidationMessage For=\"@(() => validatedModel.Email)\"");
-        content.Should().Contain("ValidationMessage For=\"@(() => validatedModel.Age)\"");
+        content.Should().Contain("<ValidationMessage For=\"@(() => validatedModel.Email)\" />");
+        content.Should().Contain("<ValidationMessage For=\"@(() => validatedModel.Age)\" />");
     }
     
     [Fact]
@@ -340,6 +461,7 @@ public class FormGeneratorTests : IDisposable
         content.Should().Contain("private CustomerOrder customerOrder = new();");
         content.Should().Contain("Model=\"@customerOrder\"");
         content.Should().Contain("customerOrder.OrderNumber");
+        content.Should().Contain("<h3>Create CustomerOrder</h3>");
     }
     
     [Fact]
@@ -370,6 +492,7 @@ public class FormGeneratorTests : IDisposable
         var content = await File.ReadAllTextAsync(formFile);
         
         content.Should().Contain("private PersonRecord personRecord = new();");
-        content.Should().Contain("EventCallback<PersonRecord> HandleSubmit");
+        content.Should().Contain("EventCallback<PersonRecord> OnSubmit");
+        content.Should().Contain("<h3>Create PersonRecord</h3>");
     }
 }

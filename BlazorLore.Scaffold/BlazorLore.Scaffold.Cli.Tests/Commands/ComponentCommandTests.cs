@@ -15,12 +15,10 @@ public class ComponentCommandTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), $"ComponentCommandTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
         
-        // Setup templates for ComponentGenerator
+        // Templates are now copied from the main project via csproj configuration
         var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
         var directory = Path.GetDirectoryName(assemblyLocation) ?? ".";
         _templateDirectory = Path.Combine(directory, "Templates", "Component");
-        Directory.CreateDirectory(_templateDirectory);
-        CreateMockTemplates();
     }
     
     public void Dispose()
@@ -29,22 +27,6 @@ public class ComponentCommandTests : IDisposable
         {
             Directory.Delete(_testDirectory, true);
         }
-        
-        var templatesRoot = Path.GetDirectoryName(_templateDirectory);
-        if (templatesRoot != null && Directory.Exists(templatesRoot))
-        {
-            Directory.Delete(templatesRoot, true);
-        }
-    }
-    
-    private void CreateMockTemplates()
-    {
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.scriban"), 
-            "<h3>{{ name }}</h3>");
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.cs.scriban"), 
-            "public partial class {{ name }}Base : ComponentBase { }");
-        File.WriteAllText(Path.Combine(_templateDirectory, "Component.razor.css.scriban"), 
-            ".{{ name | string.downcase }} { }");
     }
     
     [Fact]
