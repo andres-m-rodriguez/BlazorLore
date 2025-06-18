@@ -1,9 +1,141 @@
 using System.CommandLine;
+using System.CommandLine.NamingConventionBinder;
 using BlazorLore.Scaffold.Cli.Services;
 
 namespace BlazorLore.Scaffold.Cli.Commands;
 
-public class ComponentCommand : IEntityCommand
+public class ComponentCommand : Command
+{
+    public ComponentCommand() : base("component", "Generate a new Blazor component")
+    {
+        // Support both old and new syntax
+        AddArgument(new Argument<string>("name", "The name of the component"));
+        
+        AddOption(new Option<string>(
+            new[] { "--output", "-o" },
+            getDefaultValue: () => ".",
+            "Output directory for the generated component"));
+            
+        AddOption(new Option<bool>(
+            new[] { "--code-behind", "-c" },
+            getDefaultValue: () => false,
+            "Generate with code-behind file"));
+            
+        AddOption(new Option<bool>(
+            new[] { "--css", "-s" },
+            getDefaultValue: () => false,
+            "Generate with CSS file"));
+            
+        AddOption(new Option<string?>(
+            new[] { "--template", "-t" },
+            "Use a custom template"));
+            
+        var varsOption = new Option<string?>(
+            new[] { "--vars", "-v" },
+            "Custom variables for template (format: key=value,key2=value2)");
+        AddOption(varsOption);
+
+        Handler = CommandHandler.Create<string, string, bool, bool, string?, string?>(HandleCommand);
+    }
+
+    private async Task<int> HandleCommand(
+        string name,
+        string output,
+        bool codeBehind,
+        bool css,
+        string? template,
+        string? vars)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(template))
+            {
+                // Use custom template
+                var customService = new CustomTemplateService();
+                var variables = new Dictionary<string, object>
+                {
+                    ["name"] = name,
+                    ["namespace"] = await DetectNamespaceAsync(output),
+                    ["has_code_behind"] = codeBehind,
+                    ["has_css"] = css,
+                    ["timestamp"] = DateTime.Now,
+                    ["user"] = Environment.UserName
+                };
+
+                // Parse and add custom variables
+                if (!string.IsNullOrEmpty(vars))
+                {
+                    var customVars = new Dictionary<string, string>();
+                    var varPairs = vars.Split(',');
+                    foreach (var varPair in varPairs)
+                    {
+                        var parts = varPair.Split('=', 2);
+                        if (parts.Length == 2)
+                        {
+                            customVars[parts[0].Trim()] = parts[1].Trim();
+                        }
+                    }
+                    variables["custom"] = customVars;
+                }
+
+                var handled = await customService.GenerateFromCustomTemplateAsync(template, output, variables);
+                
+                if (handled)
+                {
+                    Console.WriteLine($"✅ Component '{name}' generated from template '{template}'!");
+                    return 0;
+                }
+            }
+
+            // Use built-in generator
+            var generator = new ComponentGenerator();
+            await generator.GenerateComponentAsync(name, output, codeBehind, css);
+            
+            Console.WriteLine($"✅ Component '{name}' generated successfully!");
+            if (codeBehind) Console.WriteLine($"   - Razor file: {name}.razor");
+            if (codeBehind) Console.WriteLine($"   - Code-behind: {name}.razor.cs");
+            if (css) Console.WriteLine($"   - Styles: {name}.razor.css");
+            
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error generating component: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private async Task<string> DetectNamespaceAsync(string outputPath)
+    {
+        // Similar logic to ComponentRefactorer.DetectNamespaceAsync
+        var directory = new DirectoryInfo(outputPath);
+        
+        while (directory != null)
+        {
+            var csprojFiles = directory.GetFiles("*.csproj");
+            if (csprojFiles.Length > 0)
+            {
+                var projectName = Path.GetFileNameWithoutExtension(csprojFiles[0].Name);
+                var relativePath = Path.GetRelativePath(directory.FullName, outputPath);
+                
+                if (relativePath != ".")
+                {
+                    var namespaceParts = relativePath.Replace(Path.DirectorySeparatorChar, '.');
+                    return await Task.FromResult($"{projectName}.{namespaceParts}");
+                }
+                
+                return await Task.FromResult(projectName);
+            }
+            
+            directory = directory.Parent;
+        }
+
+        return await Task.FromResult("MyApp.Components");
+    }
+}
+
+// Keep the old interface-based approach for backwards compatibility
+public class ComponentCommandLegacy : IEntityCommand
 {
     public string EntityName => "component";
     public string Description => "Generate and manage Blazor components";

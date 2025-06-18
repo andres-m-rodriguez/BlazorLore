@@ -1,4 +1,6 @@
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using {{ model_info.namespace }}
 @inject ILogger<{{ form_name }}> Logger
 
 <EditForm Model="@{{ model_instance }}" OnValidSubmit="@{{ submit_action }}">
@@ -46,16 +48,16 @@
     private {{ model_info.name }} {{ model_instance }} = new();
     {{ end }}
 
-    [Parameter] public EventCallback<{{ model_info.name }}> OnSubmit { get; set; }
-    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<{{ model_info.name }}> OnFormSubmit { get; set; }
+    [Parameter] public EventCallback OnFormCancel { get; set; }
 
     private async Task {{ submit_action }}()
     {
         Logger.LogInformation($"{{ if is_edit_form }}Updating{{ else }}Creating{{ end }} {{ model_info.name }}");
         
-        if (OnSubmit.HasDelegate)
+        if (OnFormSubmit.HasDelegate)
         {
-            await OnSubmit.InvokeAsync({{ model_instance }});
+            await OnFormSubmit.InvokeAsync({{ model_instance }});
         }
         
         {{ if !is_edit_form }}
@@ -66,9 +68,9 @@
 
     private async Task Cancel()
     {
-        if (OnCancel.HasDelegate)
+        if (OnFormCancel.HasDelegate)
         {
-            await OnCancel.InvokeAsync();
+            await OnFormCancel.InvokeAsync();
         }
     }
 }

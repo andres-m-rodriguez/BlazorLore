@@ -1,0 +1,86 @@
+{{ if add_usings }}using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+{{ end }}
+namespace {{ namespace }};
+
+{{ if generate_interface }}
+public interface I{{ service_name }}
+{
+    {{ for method in interface_methods }}
+    {{ method }};
+    {{ end }}
+}
+
+{{ end }}
+public class {{ service_name }}{{ if generate_interface }} : I{{ service_name }}{{ end }}
+{
+    {{ if include_logger }}
+    private readonly ILogger<{{ service_name }}> _logger;
+    {{ end }}
+    {{ for dependency in dependencies }}
+    private readonly {{ dependency.type }} {{ dependency.field_name }};
+    {{ end }}
+
+    public {{ service_name }}({{ if include_logger }}ILogger<{{ service_name }}> logger{{ if dependencies.size > 0 }}, {{ end }}{{ end }}{{ for dependency in dependencies }}{{ dependency.type }} {{ dependency.parameter_name }}{{ if !for.last }}, {{ end }}{{ end }})
+    {
+        {{ if include_logger }}
+        _logger = logger;
+        {{ end }}
+        {{ for dependency in dependencies }}
+        {{ dependency.field_name }} = {{ dependency.parameter_name }};
+        {{ end }}
+    }
+    {{ if is_repository }}
+
+    public async Task<IEnumerable<{{ entity_name }}>> GetAllAsync()
+    {
+        {{ if include_logger }}
+        _logger.LogInformation("Getting all {{ entity_name }} entities");
+        {{ end }}
+        // TODO: Implement GetAllAsync
+        throw new NotImplementedException();
+    }
+
+    public async Task<{{ entity_name }}?> GetByIdAsync({{ entity_id_type }} id)
+    {
+        {{ if include_logger }}
+        _logger.LogInformation("Getting {{ entity_name }} by id: {Id}", id);
+        {{ end }}
+        // TODO: Implement GetByIdAsync
+        throw new NotImplementedException();
+    }
+
+    public async Task<{{ entity_name }}> CreateAsync({{ entity_name }} entity)
+    {
+        {{ if include_logger }}
+        _logger.LogInformation("Creating new {{ entity_name }}");
+        {{ end }}
+        // TODO: Implement CreateAsync
+        throw new NotImplementedException();
+    }
+
+    public async Task<{{ entity_name }}> UpdateAsync({{ entity_name }} entity)
+    {
+        {{ if include_logger }}
+        _logger.LogInformation("Updating {{ entity_name }}");
+        {{ end }}
+        // TODO: Implement UpdateAsync
+        throw new NotImplementedException();
+    }
+
+    public async Task<bool> DeleteAsync({{ entity_id_type }} id)
+    {
+        {{ if include_logger }}
+        _logger.LogInformation("Deleting {{ entity_name }} with id: {Id}", id);
+        {{ end }}
+        // TODO: Implement DeleteAsync
+        throw new NotImplementedException();
+    }
+    {{ else }}
+    
+    // TODO: Add your service methods here
+    {{ end }}
+}

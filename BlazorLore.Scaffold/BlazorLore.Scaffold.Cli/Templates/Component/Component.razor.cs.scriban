@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace {{ namespace }};
 
-public partial class {{ name }}Base : ComponentBase
+public partial class {{ name }} : ComponentBase
 {
     [Inject]
     public ILogger<{{ name }}> Logger { get; set; } = default!;

@@ -15,6 +15,9 @@ public class ComponentRefactorer
         var content = await File.ReadAllTextAsync(componentPath);
         var componentName = Path.GetFileNameWithoutExtension(componentPath);
         var componentDir = Path.GetDirectoryName(componentPath) ?? ".";
+        
+        // Detect namespace
+        var detectedNamespace = await DetectNamespaceAsync(componentPath, content);
 
         // Extract @inject directives
         var injectPattern = @"@inject\s+(\S+)\s+(\S+)";
@@ -42,15 +45,12 @@ public class ComponentRefactorer
         var updatedContent = Regex.Replace(content, injectPattern, "");
         updatedContent = Regex.Replace(updatedContent, codeBlockPattern, "").Trim();
 
-        // Add @inherits directive if code-behind will be created
-        if (!string.IsNullOrWhiteSpace(codeContent) || injects.Any())
-        {
-            updatedContent = $"@inherits {componentName}Base\n\n{updatedContent}";
-        }
+        // No need for @inherits directive with partial classes
+        // The code-behind will be a partial class with the same name
 
         // Generate code-behind file
         var codeBehindPath = Path.Combine(componentDir, $"{componentName}.razor.cs");
-        var codeBehindContent = GenerateCodeBehindContent(componentName, injects, codeContent);
+        var codeBehindContent = GenerateCodeBehindContent(componentName, detectedNamespace, injects, codeContent);
 
         // Write updated files
         await File.WriteAllTextAsync(componentPath, updatedContent);
@@ -104,15 +104,15 @@ public class ComponentRefactorer
         await File.WriteAllTextAsync(codeBehindPath, modernizedContent);
     }
 
-    private string GenerateCodeBehindContent(string componentName, List<(string type, string name)> injects, string codeContent)
+    private string GenerateCodeBehindContent(string componentName, string namespaceName, List<(string type, string name)> injects, string codeContent)
     {
         var sb = new StringBuilder();
         
         sb.AppendLine("using Microsoft.AspNetCore.Components;");
         sb.AppendLine();
-        sb.AppendLine("namespace MyApp.Components;");
+        sb.AppendLine($"namespace {namespaceName};");
         sb.AppendLine();
-        sb.AppendLine($"public partial class {componentName}Base : ComponentBase");
+        sb.AppendLine($"public partial class {componentName} : ComponentBase");
         sb.AppendLine("{");
 
         // Add injected properties
@@ -211,5 +211,75 @@ public class ComponentRefactorer
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    private async Task<string> DetectNamespaceAsync(string componentPath, string content)
+    {
+        // 1. Check for @namespace directive in the component
+        var namespacePattern = @"@namespace\s+(\S+)";
+        var namespaceMatch = Regex.Match(content, namespacePattern);
+        if (namespaceMatch.Success)
+        {
+            return namespaceMatch.Groups[1].Value;
+        }
+
+        // 2. Look for _Imports.razor files
+        var directory = Path.GetDirectoryName(componentPath);
+        while (!string.IsNullOrEmpty(directory))
+        {
+            var importsFile = Path.Combine(directory, "_Imports.razor");
+            if (File.Exists(importsFile))
+            {
+                var importsContent = await File.ReadAllTextAsync(importsFile);
+                var importsNamespaceMatch = Regex.Match(importsContent, namespacePattern);
+                if (importsNamespaceMatch.Success)
+                {
+                    // Calculate relative namespace based on directory structure
+                    var baseNamespace = importsNamespaceMatch.Groups[1].Value;
+                    var relativePath = Path.GetRelativePath(directory, Path.GetDirectoryName(componentPath)!);
+                    
+                    if (relativePath != ".")
+                    {
+                        var additionalNamespace = relativePath.Replace(Path.DirectorySeparatorChar, '.');
+                        return $"{baseNamespace}.{additionalNamespace}";
+                    }
+                    
+                    return baseNamespace;
+                }
+            }
+            directory = Path.GetDirectoryName(directory);
+        }
+
+        // 3. Try to infer from directory structure
+        // Look for common patterns like "Components/Users" -> "ProjectName.Components.Users"
+        var componentDir = Path.GetDirectoryName(componentPath);
+        if (componentDir != null)
+        {
+            // Try to find project root by looking for .csproj files
+            var searchDir = componentDir;
+            string? projectName = null;
+            
+            while (!string.IsNullOrEmpty(searchDir))
+            {
+                var csprojFiles = Directory.GetFiles(searchDir, "*.csproj");
+                if (csprojFiles.Length > 0)
+                {
+                    projectName = Path.GetFileNameWithoutExtension(csprojFiles[0]);
+                    var relativePath = Path.GetRelativePath(searchDir, componentDir);
+                    
+                    if (relativePath != ".")
+                    {
+                        var namespaceParts = relativePath.Replace(Path.DirectorySeparatorChar, '.');
+                        return $"{projectName}.{namespaceParts}";
+                    }
+                    
+                    return projectName;
+                }
+                searchDir = Path.GetDirectoryName(searchDir);
+            }
+        }
+
+        // 4. Default fallback
+        return "MyApp.Components";
     }
 }

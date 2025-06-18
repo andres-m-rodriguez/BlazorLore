@@ -5,6 +5,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyName>blazorfmt</AssemblyName>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64</RuntimeIdentifiers>
     <!-- AOT is only enabled when publishing with a runtime identifier, not when packing -->
     <PublishAot Condition="'$(RuntimeIdentifier)' != ''">true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -16,17 +18,17 @@
     
     <!-- Tool packaging -->
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>blazor-scaffold</ToolCommandName>
+    <ToolCommandName>blazorfmt</ToolCommandName>
     
     <!-- NuGet package metadata -->
-    <PackageId>BlazorLore.Scaffold.Cli</PackageId>
-    <Version>1.0.1</Version>
+    <PackageId>BlazorLore.Format.Cli</PackageId>
+    <Version>1.0.0</Version>
     <Authors>BlazorLore Team</Authors>
     <Company>BlazorLore</Company>
-    <Description>A powerful CLI tool for scaffolding and refactoring Blazor components with modern C# patterns</Description>
-    <PackageTags>blazor;scaffold;cli;component;generator;refactor;dotnet-tool</PackageTags>
-    <PackageProjectUrl>https://github.com/yourusername/BlazorLore.Scaffold</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/yourusername/BlazorLore.Scaffold</RepositoryUrl>
+    <Description>A powerful formatter for Blazor and Razor components, similar to Prettier for HTML/CSS/JS</Description>
+    <PackageTags>blazor;razor;formatter;prettier;cli;dotnet-tool;code-formatting</PackageTags>
+    <PackageProjectUrl>https://github.com/yourusername/BlazorLore.Format</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/BlazorLore.Format</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -34,38 +36,34 @@
     <Copyright>Copyright (c) 2025 BlazorLore</Copyright>
     
     <!-- Additional metadata -->
-    <Title>BlazorLore Scaffold CLI</Title>
-    <Summary>Generate and refactor Blazor components with ease</Summary>
-    <PackageReleaseNotes>v1.0.1: 
-- Fixed code-behind extraction to use partial classes instead of inheritance
-- Fixed form generation to include model namespace in @using directives
-- Renamed form callbacks from OnSubmit/OnCancel to OnFormSubmit/OnFormCancel to avoid naming conflicts
-- Components now use modern partial class pattern without Base suffix</PackageReleaseNotes>
+    <Title>BlazorLore Format CLI</Title>
+    <Summary>Format Blazor and Razor components with ease</Summary>
+    <PackageReleaseNotes>v1.0.0: 
+- Initial release
+- Format Blazor/Razor components with proper indentation
+- Smart line breaking for attributes and content
+- Configurable formatting options
+- VS Code extension integration
+- Native AOT support for fast performance</PackageReleaseNotes>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-    <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta4.22272.1" />
-    <PackageReference Include="Scriban" Version="5.9.1" />
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="9.0.0" />
+    <PackageReference Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Templates/**/*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
-    
+    <ProjectReference Include="..\BlazorLore.Format.Core\BlazorLore.Format.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Include README in NuGet package -->
     <None Include="README.md" Pack="true" PackagePath="\" />
     
     <!-- Include icon in NuGet package -->
     <None Include="Icon.png" Pack="true" PackagePath="\" />
-    
-    <!-- Include templates in NuGet package -->
-    <None Include="Templates/**/*" Pack="true" PackagePath="Templates\" />
   </ItemGroup>
 
 </Project>

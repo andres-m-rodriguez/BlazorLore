@@ -1,0 +1,18 @@
+{{ if add_usings }}using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+{{ end }}
+namespace {{ namespace }};
+
+public interface I{{ service_name }}
+{
+    {{ if is_repository }}
+    Task<IEnumerable<{{ entity_name }}>> GetAllAsync();
+    Task<{{ entity_name }}?> GetByIdAsync({{ entity_id_type }} id);
+    Task<{{ entity_name }}> CreateAsync({{ entity_name }} entity);
+    Task<{{ entity_name }}> UpdateAsync({{ entity_name }} entity);
+    Task<bool> DeleteAsync({{ entity_id_type }} id);
+    {{ else }}
+    // TODO: Add your service method signatures here
+    {{ end }}
+}

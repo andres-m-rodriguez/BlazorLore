@@ -1,0 +1,39 @@
+{
+  "name": "Custom Component",
+  "description": "A custom component template with advanced features",
+  "category": "component",
+  "files": [
+    {
+      "source": "component.razor.scriban",
+      "output": "{{ name }}.razor"
+    },
+    {
+      "source": "component.razor.cs.scriban", 
+      "output": "{{ name }}.razor.cs",
+      "condition": "{{ has_code_behind }}"
+    },
+    {
+      "source": "component.razor.css.scriban",
+      "output": "{{ name }}.razor.css", 
+      "condition": "{{ has_css }}"
+    }
+  ],
+  "parameters": [
+    {
+      "name": "baseClass",
+      "type": "string",
+      "default": "ComponentBase",
+      "description": "Base class for the component"
+    },
+    {
+      "name": "includeLogger",
+      "type": "bool",
+      "default": true,
+      "description": "Include ILogger injection"
+    }
+  ],
+  "variables": {
+    "generated_by": "BlazorLore Scaffold",
+    "supports_hot_reload": true
+  }
+}

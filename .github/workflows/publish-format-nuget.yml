@@ -1,0 +1,182 @@
+name: Publish Format NuGet Package
+
+# Give the workflow write access to contents and packages
+permissions:
+  contents: write      # needed to create tags & GitHub releases
+  packages: write      # needed if you're ever publishing via GitHub Packages
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'BlazorLore.Format/BlazorLore.Format.Cli/**'
+      - 'BlazorLore.Format/BlazorLore.Format.Core/**'
+      - '.github/workflows/publish-format-nuget.yml'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  NUGET_FEED: https://api.nuget.org/v3/index.json
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build and Test
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore BlazorLore.Format/BlazorLore.Format.Core/BlazorLore.Format.Core.csproj
+          dotnet restore BlazorLore.Format/BlazorLore.Format.Cli/BlazorLore.Format.Cli.csproj
+
+      - name: Build
+        run: |
+          dotnet build BlazorLore.Format/BlazorLore.Format.Core/BlazorLore.Format.Core.csproj --configuration Release --no-restore
+          dotnet build BlazorLore.Format/BlazorLore.Format.Cli/BlazorLore.Format.Cli.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: |
+          if [ -d "BlazorLore.Format/BlazorLore.Format.Tests" ]; then
+            dotnet test BlazorLore.Format/BlazorLore.Format.Tests/BlazorLore.Format.Tests.csproj --configuration Release --no-build --verbosity normal
+          else
+            echo "No test project found, skipping tests"
+          fi
+
+      - name: Pack NuGet package
+        run: |
+          dotnet pack ./BlazorLore.Format/BlazorLore.Format.Cli/BlazorLore.Format.Cli.csproj \
+            --configuration Release --no-build --output ./nupkgs
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ./nupkgs/*.nupkg
+            ./nupkgs/*.snupkg
+
+  publish-nuget:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    name: Publish to NuGet
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Contents of artifacts directory:"
+          find ./artifacts -type f -name "*.nupkg" | sort
+
+      - name: Get version from csproj
+        id: version
+        run: |
+          VERSION=$(grep '<Version>' BlazorLore.Format/BlazorLore.Format.Cli/BlazorLore.Format.Cli.csproj \
+                    | sed 's/.*<Version>\(.*\)<\/Version>.*/\1/' \
+                    | head -1)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Check if version exists on NuGet
+        id: version-check
+        run: |
+          check_package() {
+            pkg=$1; ver=$2
+            url="https://api.nuget.org/v3-flatcontainer/${pkg,,}/${ver}/${pkg,,}.nuspec"
+            echo "Checking URL: $url"
+            if curl -s -f -o /dev/null "$url"; then
+              return 0
+            else
+              return 1
+            fi
+          }
+
+          if check_package "BlazorLore.Format.Cli" "${{ steps.version.outputs.VERSION }}"; then
+            echo "PACKAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            echo "Package version ${{ steps.version.outputs.VERSION }} already exists on NuGet"
+          else
+            echo "PACKAGE_EXISTS=false" >> $GITHUB_OUTPUT
+            echo "Package version ${{ steps.version.outputs.VERSION }} does not exist on NuGet"
+          fi
+
+      - name: Debug API Key
+        run: |
+          if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+            echo "ERROR: NUGET_API_KEY secret is not set!"
+            exit 1
+          else
+            echo "API key is configured (length: ${#NUGET_API_KEY})"
+          fi
+
+      - name: Publish to NuGet
+        if: steps.version-check.outputs.PACKAGE_EXISTS == 'false'
+        run: |
+          PACKAGE=$(find ./artifacts -name "BlazorLore.Format.Cli.${{ steps.version.outputs.VERSION }}.nupkg" -type f | head -1)
+          echo "Publishing package: $PACKAGE"
+          
+          if [ -z "$PACKAGE" ]; then
+            echo "ERROR: Package file not found!"
+            ls -la ./artifacts/
+            exit 1
+          fi
+          
+          dotnet nuget push "$PACKAGE" \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source ${{ env.NUGET_FEED }} \
+            --skip-duplicate
+          
+          echo "Push completed with exit code: $?"
+
+      - name: Create GitHub Release
+        if: steps.version-check.outputs.PACKAGE_EXISTS == 'false'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: format-v${{ steps.version.outputs.VERSION }}
+          release_name: BlazorLore Format v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## BlazorLore Format CLI v${{ steps.version.outputs.VERSION }}
+
+            A powerful formatter for Blazor and Razor components, similar to Prettier for HTML/CSS/JS.
+
+            ### Installation
+            ```bash
+            dotnet tool install --global BlazorLore.Format.Cli --version ${{ steps.version.outputs.VERSION }}
+            ```
+
+            ### Usage
+            ```bash
+            blazorfmt format --help
+            ```
+
+            ### Features
+            - 🎨 Format Blazor/Razor components with proper indentation
+            - 📏 Smart line breaking for attributes and content
+            - ⚙️ Highly configurable formatting options
+            - 🚀 Native AOT compilation for fast performance
+            - 🔧 VS Code extension integration
+            - 📦 Cross-platform support (Windows, Linux, macOS)
+          draft: false
+          prerelease: false

@@ -1,0 +1,18 @@
+{
+  "IndentSize": 4,
+  "UseTabs": false,
+  "MaxLineLength": 120,
+  "FormatEmbeddedCSharp": true,
+  "FormatEmbeddedCss": true,
+  "FormatEmbeddedJavaScript": true,
+  "AttributeFormatting": "multilineWhenMany",
+  "AttributesPerLine": 1,
+  "AttributeBreakThreshold": 3,
+  "BreakContentWithManyAttributes": true,
+  "ContentBreakThreshold": 2,
+  "SortAttributes": false,
+  "CollapseEmptyTags": true,
+  "RemoveTrailingWhitespace": true,
+  "InsertFinalNewline": true,
+  "QuoteStyle": "double"
+}

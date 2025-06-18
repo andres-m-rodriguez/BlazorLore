@@ -1,0 +1,138 @@
+{
+  "name": "blazor-formatter",
+  "displayName": "Blazor Formatter",
+  "description": "A Prettier-like formatter for Blazor and Razor components",
+  "version": "1.0.0",
+  "publisher": "blazorlore",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "keywords": [
+    "blazor",
+    "razor",
+    "formatter",
+    "prettier",
+    "csharp",
+    "dotnet"
+  ],
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blazorlore/blazor-formatter"
+  },
+  "bugs": {
+    "url": "https://github.com/blazorlore/blazor-formatter/issues"
+  },
+  "homepage": "https://github.com/blazorlore/blazor-formatter#readme",
+  "license": "MIT",
+  "galleryBanner": {
+    "color": "#512BD4",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onLanguage:razor",
+    "onLanguage:aspnetcorerazor"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "razor",
+        "aliases": ["Razor", "razor"],
+        "extensions": [".razor", ".cshtml"]
+      }
+    ],
+    "configuration": {
+      "title": "Blazor Formatter",
+      "properties": {
+        "blazorFormatter.executablePath": {
+          "type": "string",
+          "default": "blazorfmt",
+          "description": "Path to the blazorfmt executable"
+        },
+        "blazorFormatter.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format Blazor/Razor files on save"
+        },
+        "blazorFormatter.indentSize": {
+          "type": "number",
+          "default": null,
+          "description": "Number of spaces for indentation (overrides config file)"
+        },
+        "blazorFormatter.useTabs": {
+          "type": "boolean",
+          "default": null,
+          "description": "Use tabs instead of spaces (overrides config file)"
+        },
+        "blazorFormatter.attributeFormatting": {
+          "type": "string",
+          "default": null,
+          "enum": ["inline", "multilineAlways", "multilineWhenMany"],
+          "description": "How to format element attributes (overrides config file)"
+        },
+        "blazorFormatter.attributeBreakThreshold": {
+          "type": "number",
+          "default": 3,
+          "description": "Number of attributes before breaking to multiple lines"
+        },
+        "blazorFormatter.contentBreakThreshold": {
+          "type": "number",
+          "default": 2,
+          "description": "Number of attributes before breaking content to new line"
+        },
+        "blazorFormatter.breakContentWithManyAttributes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Break element content to new line when there are many attributes"
+        },
+        "blazorFormatter.configPath": {
+          "type": "string",
+          "default": null,
+          "description": "Path to .blazorfmt.json configuration file"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "blazorFormatter.formatDocument",
+        "title": "Format Document",
+        "category": "Blazor Formatter",
+        "when": "editorLangId == razor || editorLangId == aspnetcorerazor"
+      },
+      {
+        "command": "blazorFormatter.createConfig",
+        "title": "Create Configuration File",
+        "category": "Blazor Formatter"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorLangId == razor || editorLangId == aspnetcorerazor",
+          "command": "blazorFormatter.formatDocument",
+          "group": "1_modification"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "18.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.3"
+  }
+}
