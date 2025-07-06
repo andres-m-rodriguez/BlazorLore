@@ -46,5 +46,8 @@ public enum CodeBlockType
     Statement,
     Directive,
     CodeBlock,
-    IfBlock
+    IfBlock,
+    ForeachBlock,
+    ElseBlock,
+    ElseIfBlock
 }

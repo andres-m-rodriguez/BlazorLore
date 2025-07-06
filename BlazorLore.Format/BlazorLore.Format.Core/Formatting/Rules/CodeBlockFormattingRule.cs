@@ -43,6 +43,12 @@ public class CodeBlockFormattingRule : IFormattingRule
                     FormatStatement(codeBlock, context);
                 }
                 break;
+            case CodeBlockType.IfBlock:
+            case CodeBlockType.ForeachBlock:
+            case CodeBlockType.ElseBlock:
+            case CodeBlockType.ElseIfBlock:
+                // These are handled by their specific formatting rules
+                break;
         }
     }
 

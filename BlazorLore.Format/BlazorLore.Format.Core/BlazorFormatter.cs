@@ -19,6 +19,8 @@ public class BlazorFormatter : IBlazorFormatter
         {
             new ElementFormattingRule(),
             new IfBlockFormattingRule(),
+            new ElseBlockFormattingRule(),
+            new ForeachBlockFormattingRule(),
             new CodeBlockFormattingRule()
         }
             .OrderByDescending(r => r.Priority)

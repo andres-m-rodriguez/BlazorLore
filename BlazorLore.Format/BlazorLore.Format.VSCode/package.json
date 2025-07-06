@@ -2,7 +2,7 @@
   "name": "blazor-formatter",
   "displayName": "Blazor Formatter",
   "description": "A Prettier-like formatter for Blazor and Razor components",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "blazorlore",
   "engines": {
     "vscode": "^1.74.0"
@@ -93,6 +93,11 @@
           "type": "string",
           "default": null,
           "description": "Path to .blazorfmt.json configuration file"
+        },
+        "blazorFormatter.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for CLI tool updates on extension activation"
         }
       }
     },

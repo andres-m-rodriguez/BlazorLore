@@ -30,10 +30,19 @@ public class ElementFormattingRule : IFormattingRule
 
     private void FormatSelfClosingElement(ElementNode element, FormattingContext context)
     {
-        context.Write($"<{element.TagName}");
-        FormatAttributes(element, context);
-        context.Write(" />");
-        context.FinishLine();
+        // Special handling for declarations like <!DOCTYPE html>
+        if (element.TagName.StartsWith("<!"))
+        {
+            context.Write(element.TagName);
+            context.FinishLine();
+        }
+        else
+        {
+            context.Write($"<{element.TagName}");
+            FormatAttributes(element, context);
+            context.Write(" />");
+            context.FinishLine();
+        }
     }
 
     private void FormatOpeningTag(ElementNode element, FormattingContext context)
@@ -160,8 +169,9 @@ public class ElementFormattingRule : IFormattingRule
         var shouldBreakContent = ShouldBreakContent(element, context.Options, false);
         
         // Keep simple text content inline unless forced to break
-        if (hasOnlyTextAndExpressions && !shouldBreakContent)
+        if (hasOnlyTextAndExpressions && !shouldBreakContent && element.Children.Count == 1)
         {
+            // Single child content can stay inline
             foreach (var child in element.Children)
             {
                 if (child is TextNode textNode)
@@ -170,14 +180,50 @@ public class ElementFormattingRule : IFormattingRule
                 }
                 else if (child is CodeBlockNode codeBlock && codeBlock.Type == CodeBlockType.Expression)
                 {
-                    // Add space only if there's preceding text
-                    if (element.Children.IndexOf(child) > 0)
-                    {
-                        context.Write(" ");
-                    }
                     context.Write($"@{codeBlock.Code}");
                 }
             }
+        }
+        else if (hasOnlyTextAndExpressions && !shouldBreakContent)
+        {
+            // Multiple children or mixed content - put on new line with indentation
+            context.FinishLine();
+            context.CurrentIndentLevel++;
+            
+            var contentParts = new List<string>();
+            foreach (var child in element.Children)
+            {
+                if (child is TextNode textNode)
+                {
+                    var trimmed = textNode.Content.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                        contentParts.Add(trimmed);
+                }
+                else if (child is CodeBlockNode codeBlock && codeBlock.Type == CodeBlockType.Expression)
+                {
+                    contentParts.Add($"@{codeBlock.Code}");
+                }
+            }
+            
+            if (contentParts.Any())
+            {
+                // Join content parts without spaces to preserve expressions like $@variable
+                var content = string.Empty;
+                for (int i = 0; i < contentParts.Count; i++)
+                {
+                    content += contentParts[i];
+                    // Add space between text parts but not before @ expressions
+                    if (i < contentParts.Count - 1 && 
+                        !contentParts[i + 1].StartsWith("@") && 
+                        !contentParts[i].EndsWith("$"))
+                    {
+                        content += " ";
+                    }
+                }
+                context.WriteLine(content);
+            }
+            
+            context.CurrentIndentLevel--;
         }
         else if (HasBlockLevelChildren(element) || shouldBreakContent)
         {
@@ -215,7 +261,22 @@ public class ElementFormattingRule : IFormattingRule
         }
         else if (node is CodeBlockNode codeBlock)
         {
-            new CodeBlockFormattingRule().Apply(codeBlock, context);
+            if (codeBlock.Type == CodeBlockType.IfBlock)
+            {
+                new IfBlockFormattingRule().Apply(codeBlock, context);
+            }
+            else if (codeBlock.Type == CodeBlockType.ForeachBlock)
+            {
+                new ForeachBlockFormattingRule().Apply(codeBlock, context);
+            }
+            else if (codeBlock.Type == CodeBlockType.ElseBlock || codeBlock.Type == CodeBlockType.ElseIfBlock)
+            {
+                new ElseBlockFormattingRule().Apply(codeBlock, context);
+            }
+            else
+            {
+                new CodeBlockFormattingRule().Apply(codeBlock, context);
+            }
         }
     }
 

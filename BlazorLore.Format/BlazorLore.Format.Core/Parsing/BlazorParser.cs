@@ -51,8 +51,11 @@ public class SimpleRazorParser
     private static readonly Regex CodeBlockRegex = new(@"@\{(?<code>.*?)\}", RegexOptions.Singleline);
     private static readonly Regex ExpressionRegex = new(@"@(?!code\s*\{)(?<expr>[a-zA-Z_]\w*(?:\.\w+)*(?:\([^)]*\))?)", RegexOptions.Singleline);
     private static readonly Regex CodeDirectiveRegex = new(@"@code\s*\{(?<code>(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\}", RegexOptions.Singleline);
-    private static readonly Regex DirectiveRegex = new(@"@(?<directive>page|using|inject|inherits|layout|implements)\s+(?<value>.*?)$", RegexOptions.Multiline);
-    private static readonly Regex IfBlockRegex = new(@"@if\s*\((?<condition>[^)]+)\)\s*\{(?<content>.*?)\}(?=\s*(@|$))", RegexOptions.Singleline);
+    private static readonly Regex DirectiveRegex = new(@"@(?<directive>page|using|inject|inherits|layout|implements|rendermode|attribute)\s+(?<value>.*?)$", RegexOptions.Multiline);
+    private static readonly Regex IfBlockRegex = new(@"@if\s*\(", RegexOptions.Singleline);
+    private static readonly Regex ForeachBlockRegex = new(@"@foreach\s*\(", RegexOptions.Singleline);
+    private static readonly Regex ElseIfBlockRegex = new(@"else\s+if\s*\(", RegexOptions.Singleline);
+    private static readonly Regex ElseBlockRegex = new(@"else(?!\s+if)", RegexOptions.Singleline);
 
     public List<BlazorNode> Parse(string content)
     {
@@ -150,11 +153,13 @@ public class SimpleRazorParser
                 var expressionMatch = ExpressionRegex.Match(content, nextIndex);
                 var directiveMatch = DirectiveRegex.Match(content, nextIndex);
                 var ifBlockMatch = IfBlockRegex.Match(content, nextIndex);
+                var foreachBlockMatch = ForeachBlockRegex.Match(content, nextIndex);
 
                 var razorMatches = new[]
                 {
                     (match: directiveMatch, type: "directive"),
                     (match: ifBlockMatch, type: "ifblock"),
+                    (match: foreachBlockMatch, type: "foreachblock"),
                     (match: codeBlockMatch, type: "codeblock"),
                     (match: expressionMatch, type: "expression")
                 }
@@ -200,24 +205,35 @@ public class SimpleRazorParser
                             continue;
                             
                         case "ifblock":
-                            var ifStart = razorMatches.match.Index;
-                            var braceStart = content.IndexOf('{', ifStart);
-                            if (braceStart != -1)
+                            var (ifNodes, endPos) = ParseIfElseBlock(content, razorMatches.match.Index);
+                            nodes.AddRange(ifNodes);
+                            position = endPos;
+                            continue;
+                            
+                        case "foreachblock":
+                            var foreachStart = razorMatches.match.Index;
+                            // Find the condition by matching parentheses
+                            var foreachConditionStart = foreachStart + razorMatches.match.Length;
+                            var (foreachCondition, foreachConditionEnd) = ExtractCondition(content, foreachConditionStart - 1);
+                            if (!string.IsNullOrEmpty(foreachCondition))
                             {
-                                var braceEnd = FindMatchingBrace(content, braceStart);
-                                if (braceEnd != -1)
+                                var foreachBraceStart = content.IndexOf('{', foreachConditionEnd);
+                                if (foreachBraceStart != -1)
                                 {
-                                    var ifContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
-                                    var ifCondition = razorMatches.match.Groups["condition"].Value;
-                                    nodes.Add(new CodeBlockNode
+                                    var foreachBraceEnd = FindMatchingBrace(content, foreachBraceStart);
+                                    if (foreachBraceEnd != -1)
                                     {
-                                        Code = $"if({ifCondition})\n{{\n{ifContent}\n}}",
-                                        Type = CodeBlockType.IfBlock,
-                                        StartPosition = ifStart,
-                                        EndPosition = braceEnd + 1
-                                    });
-                                    position = braceEnd + 1;
-                                    continue;
+                                        var foreachContent = content.Substring(foreachBraceStart + 1, foreachBraceEnd - foreachBraceStart - 1);
+                                        nodes.Add(new CodeBlockNode
+                                        {
+                                            Code = $"foreach ({foreachCondition})\n{{\n{foreachContent}\n}}",
+                                            Type = CodeBlockType.ForeachBlock,
+                                            StartPosition = foreachStart,
+                                            EndPosition = foreachBraceEnd + 1
+                                        });
+                                        position = foreachBraceEnd + 1;
+                                        continue;
+                                    }
                                 }
                             }
                             break;
@@ -277,6 +293,32 @@ public class SimpleRazorParser
         // Skip whitespace after <
         while (position < content.Length && char.IsWhiteSpace(content[position]))
             position++;
+
+        // Check if we've reached the end after skipping whitespace
+        if (position >= content.Length)
+            return null;
+
+        // Check for special tags like <!DOCTYPE>
+        if (content[position] == '!')
+        {
+            // Handle special declarations like <!DOCTYPE html>
+            var declarationEnd = content.IndexOf('>', position);
+            if (declarationEnd != -1)
+            {
+                var declaration = content.Substring(startPosition, declarationEnd - startPosition + 1);
+                var specialElement = new ElementNode
+                {
+                    TagName = declaration, // Store the entire declaration as the tag name
+                    IsSelfClosing = true,
+                    StartPosition = startPosition,
+                    EndPosition = declarationEnd + 1,
+                    Attributes = new List<AttributeNode>(),
+                    Children = new List<BlazorNode>()
+                };
+                return new ElementParseResult { Element = specialElement, EndPosition = declarationEnd + 1 };
+            }
+            return null;
+        }
 
         // Get tag name
         var tagNameStart = position;
@@ -559,5 +601,139 @@ public class SimpleRazorParser
         }
         
         return -1;
+    }
+    
+    private (List<BlazorNode> nodes, int endPosition) ParseIfElseBlock(string content, int startIndex)
+    {
+        var nodes = new List<BlazorNode>();
+        var position = startIndex;
+        
+        // Parse the @if block
+        var ifMatch = IfBlockRegex.Match(content, position);
+        if (!ifMatch.Success || ifMatch.Index != position)
+            return (nodes, position);
+            
+        // Find the condition by matching parentheses
+        var conditionStart = ifMatch.Index + ifMatch.Length;
+        var (ifCondition, conditionEnd) = ExtractCondition(content, conditionStart - 1);
+        if (string.IsNullOrEmpty(ifCondition))
+            return (nodes, position);
+            
+        var braceStart = content.IndexOf('{', conditionEnd);
+        if (braceStart == -1)
+            return (nodes, position);
+            
+        var braceEnd = FindMatchingBrace(content, braceStart);
+        if (braceEnd == -1)
+            return (nodes, position);
+            
+        var ifContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
+        nodes.Add(new CodeBlockNode
+        {
+            Code = $"if ({ifCondition})\n{{\n{ifContent}\n}}",
+            Type = CodeBlockType.IfBlock,
+            StartPosition = startIndex,
+            EndPosition = braceEnd + 1
+        });
+        
+        position = braceEnd + 1;
+        
+        // Skip whitespace
+        while (position < content.Length && char.IsWhiteSpace(content[position]))
+            position++;
+            
+        // Check for else if or else
+        while (position < content.Length)
+        {
+            var elseIfMatch = ElseIfBlockRegex.Match(content, position);
+            var elseMatch = ElseBlockRegex.Match(content, position);
+            
+            if (elseIfMatch.Success && elseIfMatch.Index == position)
+            {
+                // Find the condition by matching parentheses
+                var elseIfConditionStart = elseIfMatch.Index + elseIfMatch.Length;
+                var (elseIfCondition, elseIfConditionEnd) = ExtractCondition(content, elseIfConditionStart - 1);
+                if (string.IsNullOrEmpty(elseIfCondition))
+                    break;
+                    
+                braceStart = content.IndexOf('{', elseIfConditionEnd);
+                if (braceStart == -1)
+                    break;
+                    
+                braceEnd = FindMatchingBrace(content, braceStart);
+                if (braceEnd == -1)
+                    break;
+                    
+                var elseIfContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
+                nodes.Add(new CodeBlockNode
+                {
+                    Code = $"else if ({elseIfCondition})\n{{\n{elseIfContent}\n}}",
+                    Type = CodeBlockType.ElseIfBlock,
+                    StartPosition = position,
+                    EndPosition = braceEnd + 1
+                });
+                
+                position = braceEnd + 1;
+                
+                // Skip whitespace
+                while (position < content.Length && char.IsWhiteSpace(content[position]))
+                    position++;
+            }
+            else if (elseMatch.Success && elseMatch.Index == position)
+            {
+                braceStart = content.IndexOf('{', elseMatch.Index + elseMatch.Length);
+                if (braceStart == -1)
+                    break;
+                    
+                braceEnd = FindMatchingBrace(content, braceStart);
+                if (braceEnd == -1)
+                    break;
+                    
+                var elseContent = content.Substring(braceStart + 1, braceEnd - braceStart - 1);
+                nodes.Add(new CodeBlockNode
+                {
+                    Code = $"else\n{{\n{elseContent}\n}}",
+                    Type = CodeBlockType.ElseBlock,
+                    StartPosition = position,
+                    EndPosition = braceEnd + 1
+                });
+                
+                position = braceEnd + 1;
+                break; // else is always the last block
+            }
+            else
+            {
+                break;
+            }
+        }
+        
+        return (nodes, position);
+    }
+    
+    private (string condition, int endPosition) ExtractCondition(string content, int openParenIndex)
+    {
+        if (openParenIndex >= content.Length || content[openParenIndex] != '(')
+            return (string.Empty, openParenIndex);
+            
+        var depth = 1;
+        var index = openParenIndex + 1;
+        
+        while (index < content.Length && depth > 0)
+        {
+            if (content[index] == '(')
+                depth++;
+            else if (content[index] == ')')
+                depth--;
+                
+            if (depth == 0)
+            {
+                var condition = content.Substring(openParenIndex + 1, index - openParenIndex - 1);
+                return (condition, index + 1);
+            }
+                
+            index++;
+        }
+        
+        return (string.Empty, openParenIndex);
     }
 }

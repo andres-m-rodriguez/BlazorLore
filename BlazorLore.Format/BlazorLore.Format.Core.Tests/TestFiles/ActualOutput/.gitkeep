@@ -1,0 +1,2 @@
+# This file ensures the ActualOutput directory is tracked by git
+# Actual output files will be generated here during test runs

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+        @PageTitle
+        </title>
+    </head>
+    <body>
+        @page "/mixed"
+        @rendermode Static
+        <div class="container">
+            @if
+            (showHeader)
+{
+            <header>
+                <h1>
+                @Title
+                </h1>
+            </header>
+            }
+            <main>
+            @Body
+            </main>
+        </div>
+    </body>
+</html>
+
+@code
+{
+    [Parameter] public string PageTitle { get; set; } = "Default Title";
+    [Parameter] public string Title { get; set; } = "Welcome";
+    [Parameter] public RenderFragment Body { get; set; }
+    private bool showHeader = true;
+}

@@ -2,14 +2,15 @@ using BlazorLore.Format.Core.Parsing;
 
 namespace BlazorLore.Format.Core.Formatting.Rules;
 
-public class IfBlockFormattingRule : IFormattingRule
+public class ElseBlockFormattingRule : IFormattingRule
 {
-    public string Name => "IfBlockFormatting";
+    public string Name => "ElseBlockFormatting";
     public int Priority => 95;
 
     public bool CanApply(BlazorNode node, BlazorFormatterOptions options)
     {
-        return node is CodeBlockNode codeBlock && codeBlock.Type == CodeBlockType.IfBlock;
+        return node is CodeBlockNode codeBlock && 
+               (codeBlock.Type == CodeBlockType.ElseBlock || codeBlock.Type == CodeBlockType.ElseIfBlock);
     }
 
     public void Apply(BlazorNode node, FormattingContext context)
@@ -17,19 +18,25 @@ public class IfBlockFormattingRule : IFormattingRule
         var codeBlock = (CodeBlockNode)node;
         var lines = codeBlock.Code.Split('\n');
         
-        // First line: @if (condition) {
+        // First line: else or else if (condition)
         if (lines.Length > 0)
         {
-            var ifLine = lines[0].Trim();
-            if (ifLine.StartsWith("if("))
+            var firstLine = lines[0].Trim();
+            
+            // Ensure else if has proper parentheses
+            if (firstLine.StartsWith("else if") && !firstLine.EndsWith(")"))
             {
-                // Add space after 'if'
-                var condition = ifLine.Substring(2); // Remove "if"
-                context.Write($"@if {condition}");
+                // Find the closing parenthesis on the next line if split
+                var conditionLine = firstLine;
+                for (int i = 1; i < lines.Length && !conditionLine.EndsWith(")"); i++)
+                {
+                    conditionLine += " " + lines[i].Trim();
+                }
+                context.Write(conditionLine);
             }
-            else if (ifLine.StartsWith("if ("))
+            else
             {
-                context.Write($"@{ifLine}");
+                context.Write(firstLine);
             }
         }
         
@@ -37,7 +44,7 @@ public class IfBlockFormattingRule : IFormattingRule
         context.FinishLine();
         context.WriteLine("{");
         
-        // Parse and format the content inside the if block
+        // Parse and format the content inside the else block
         if (lines.Length > 2)
         {
             // Get all content between the braces

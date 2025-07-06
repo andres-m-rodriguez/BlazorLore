@@ -2,14 +2,14 @@ using BlazorLore.Format.Core.Parsing;
 
 namespace BlazorLore.Format.Core.Formatting.Rules;
 
-public class IfBlockFormattingRule : IFormattingRule
+public class ForeachBlockFormattingRule : IFormattingRule
 {
-    public string Name => "IfBlockFormatting";
+    public string Name => "ForeachBlockFormatting";
     public int Priority => 95;
 
     public bool CanApply(BlazorNode node, BlazorFormatterOptions options)
     {
-        return node is CodeBlockNode codeBlock && codeBlock.Type == CodeBlockType.IfBlock;
+        return node is CodeBlockNode codeBlock && codeBlock.Type == CodeBlockType.ForeachBlock;
     }
 
     public void Apply(BlazorNode node, FormattingContext context)
@@ -17,19 +17,19 @@ public class IfBlockFormattingRule : IFormattingRule
         var codeBlock = (CodeBlockNode)node;
         var lines = codeBlock.Code.Split('\n');
         
-        // First line: @if (condition) {
+        // First line: @foreach (condition)
         if (lines.Length > 0)
         {
-            var ifLine = lines[0].Trim();
-            if (ifLine.StartsWith("if("))
+            var foreachLine = lines[0].Trim();
+            if (foreachLine.StartsWith("foreach("))
             {
-                // Add space after 'if'
-                var condition = ifLine.Substring(2); // Remove "if"
-                context.Write($"@if {condition}");
+                // Add space after 'foreach'
+                var condition = foreachLine.Substring(7); // Remove "foreach"
+                context.Write($"@foreach {condition}");
             }
-            else if (ifLine.StartsWith("if ("))
+            else if (foreachLine.StartsWith("foreach ("))
             {
-                context.Write($"@{ifLine}");
+                context.Write($"@{foreachLine}");
             }
         }
         
@@ -37,7 +37,7 @@ public class IfBlockFormattingRule : IFormattingRule
         context.FinishLine();
         context.WriteLine("{");
         
-        // Parse and format the content inside the if block
+        // Parse and format the content inside the foreach block
         if (lines.Length > 2)
         {
             // Get all content between the braces

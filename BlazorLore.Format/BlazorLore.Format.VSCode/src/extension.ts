@@ -3,24 +3,23 @@ import { BlazorFormattingProvider } from './formattingProvider';
 import { BlazorFormatter } from './formatter';
 import { StatusBarManager } from './statusBar';
 import { CliInstaller } from './cliInstaller';
+import { VersionChecker } from './versionChecker';
 
 let statusBar: StatusBarManager;
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Blazor Formatter extension is now active');
 
-    // Check if CLI is installed on activation
-    const isInstalled = await CliInstaller.ensureInstalled();
-    if (!isInstalled) {
-        vscode.window.showWarningMessage(
-            'BlazorLore formatter CLI is not installed. Some features may not work correctly.',
-            'Install Now'
-        ).then(async (choice) => {
-            if (choice === 'Install Now') {
-                await CliInstaller.promptInstall();
-            }
-        });
+    // Check if CLI is installed on activation (silently)
+    const isInstalled = await CliInstaller.isInstalled();
+    if (isInstalled) {
+        // Check for updates if installed as a .NET tool
+        if (VersionChecker.shouldCheckForUpdate(context)) {
+            checkForUpdatesInBackground(context);
+        }
     }
+    // Note: We don't prompt for installation here anymore.
+    // The formatter will show an error with install option if it actually fails to run.
 
     const formatter = new BlazorFormatter();
     statusBar = new StatusBarManager();
@@ -154,4 +153,43 @@ function isBlazorDocument(document: vscode.TextDocument): boolean {
     const lang = document.languageId;
     return lang === 'razor' || lang === 'aspnetcorerazor' || 
            document.fileName.endsWith('.razor') || document.fileName.endsWith('.cshtml');
+}
+
+async function checkForUpdatesInBackground(context: vscode.ExtensionContext) {
+    try {
+        const currentVersion = await CliInstaller.getInstalledVersion();
+        const versionInfo = await VersionChecker.checkForUpdate(currentVersion);
+        
+        if (versionInfo.isUpdateAvailable) {
+            const message = `A new version of BlazorLore formatter is available (${versionInfo.latest}). You currently have ${versionInfo.current}.`;
+            const choice = await vscode.window.showInformationMessage(
+                message,
+                'Update Now',
+                'Later',
+                'Don\'t Show Again'
+            );
+            
+            if (choice === 'Update Now') {
+                try {
+                    await vscode.window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'BlazorLore Formatter',
+                        cancellable: false
+                    }, async (progress) => {
+                        await CliInstaller.install(progress);
+                    });
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(error.message);
+                }
+            } else if (choice === 'Don\'t Show Again') {
+                const config = vscode.workspace.getConfiguration('blazorFormatter');
+                await config.update('checkForUpdates', false, vscode.ConfigurationTarget.Global);
+            }
+        }
+        
+        // Update last check time
+        await VersionChecker.updateLastCheckTime(context);
+    } catch (error) {
+        console.error('Failed to check for updates:', error);
+    }
 }
