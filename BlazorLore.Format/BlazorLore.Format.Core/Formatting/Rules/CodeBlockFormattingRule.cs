@@ -1,6 +1,7 @@
 using BlazorLore.Format.Core.Parsing;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Formatting;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Options;
@@ -103,17 +104,15 @@ public class CodeBlockFormattingRule : IFormattingRule
         
         if (context.Options.FormatEmbeddedCSharp)
         {
-            var codeContent = codeBlock.Code.Substring(5); // Remove "code " prefix
+            var codeContent = codeBlock.Code.Substring(5).Trim(); // Remove "code " prefix and trim
             var formattedCode = FormatCSharpCode(codeContent, context);
             var lines = formattedCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
             
             context.CurrentIndentLevel++;
             foreach (var line in lines)
             {
-                if (!string.IsNullOrWhiteSpace(line))
-                {
-                    context.WriteLine(line.TrimEnd());
-                }
+                // Write each line with proper indentation
+                context.WriteLine(line.TrimEnd());
             }
             context.CurrentIndentLevel--;
         }
@@ -144,7 +143,7 @@ public class CodeBlockFormattingRule : IFormattingRule
 using Microsoft.AspNetCore.Components;
 public class Component : ComponentBase
 {{
-    {code}
+{code}
 }}";
             
             var tree = CSharpSyntaxTree.ParseText(wrappedCode);
@@ -154,7 +153,12 @@ public class Component : ComponentBase
             var options = workspace.Options
                 .WithChangedOption(FormattingOptions.UseTabs, LanguageNames.CSharp, context.Options.UseTabs)
                 .WithChangedOption(FormattingOptions.TabSize, LanguageNames.CSharp, context.Options.IndentSize)
-                .WithChangedOption(FormattingOptions.IndentationSize, LanguageNames.CSharp, context.Options.IndentSize);
+                .WithChangedOption(FormattingOptions.IndentationSize, LanguageNames.CSharp, context.Options.IndentSize)
+                .WithChangedOption(CSharpFormattingOptions.NewLinesForBracesInMethods, true)
+                .WithChangedOption(CSharpFormattingOptions.NewLinesForBracesInTypes, true)
+                .WithChangedOption(CSharpFormattingOptions.NewLinesForBracesInProperties, true)
+                .WithChangedOption(CSharpFormattingOptions.NewLinesForBracesInAccessors, true)
+                .WithChangedOption(CSharpFormattingOptions.NewLinesForBracesInControlBlocks, true);
             
             var formattedRoot = Formatter.Format(root, workspace, options);
             
@@ -162,45 +166,67 @@ public class Component : ComponentBase
             var classDeclaration = formattedRoot.DescendantNodes().OfType<ClassDeclarationSyntax>().First();
             var members = classDeclaration.Members;
             
+            if (!members.Any())
+            {
+                return code;
+            }
+            
             var result = new StringBuilder();
+            var isFirst = true;
+            
             foreach (var member in members)
             {
-                var memberText = member.ToFullString();
-                // Remove extra indentation that was added by wrapping in a class
+                if (!isFirst)
+                {
+                    result.AppendLine();
+                }
+                isFirst = false;
+                
+                var memberText = member.ToString(); // Use ToString() instead of ToFullString() to avoid trivia
                 var lines = memberText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
                 
-                // Find the minimum indentation in the member (excluding empty lines)
-                int minIndent = int.MaxValue;
-                foreach (var line in lines)
+                // Process each line, removing the class-level indentation
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    if (!string.IsNullOrWhiteSpace(line))
+                    var line = lines[i];
+                    
+                    // Skip completely empty lines at the start or end of a member
+                    if (string.IsNullOrWhiteSpace(line) && (i == 0 || i == lines.Length - 1))
                     {
-                        var leadingSpaces = line.TakeWhile(char.IsWhiteSpace).Count();
-                        minIndent = Math.Min(minIndent, leadingSpaces);
+                        continue;
                     }
-                }
-                
-                // Remove the extra indentation from each line
-                foreach (var line in lines)
-                {
+                    
                     if (string.IsNullOrWhiteSpace(line))
                     {
+                        // Preserve empty lines in the middle
                         result.AppendLine();
                     }
                     else
                     {
-                        // Remove the minimum indentation found
-                        var trimmedLine = line.Length > minIndent ? line.Substring(minIndent) : line.TrimStart();
+                        // Remove exactly 4 spaces of indentation that were added by the class wrapper
+                        var trimmedLine = line;
+                        if (line.StartsWith("    "))
+                        {
+                            trimmedLine = line.Substring(4);
+                        }
+                        else if (line.TrimStart() == line)
+                        {
+                            // Line has no indentation, keep as is
+                        }
+                        else
+                        {
+                            // Line has less than 4 spaces, remove what's there
+                            trimmedLine = line.TrimStart();
+                        }
+                        
                         result.AppendLine(trimmedLine.TrimEnd());
                     }
                 }
-                if (member != members.Last())
-                {
-                    result.AppendLine();
-                }
             }
             
-            return result.ToString().TrimEnd();
+            // Remove any trailing newlines
+            var finalResult = result.ToString().TrimEnd('\r', '\n');
+            return finalResult;
         }
         catch
         {

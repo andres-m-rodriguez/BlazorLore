@@ -1,54 +1,25 @@
-@page "/products"
-@rendermode InteractiveServer
-@attribute [Authorize]
-@attribute [StreamRendering]
-@using System.Linq
-@inject IProductService ProductService
-@inject ILogger<Products> Logger
-<PageTitle>Products</PageTitle>
-<h1>Product Catalog</h1>
-@if (isLoading)
+@page "/counter"
+@rendermode InteractiveAuto
+<PageTitle>Counter</PageTitle>
+<h1>Counter</h1>
+<p
+	role="status">
+	Current count:
+	@currentCount
+</p>
+<button
+	class="btn btn-primary"
+	@onclick="IncrementCount">
+	Click me
+</button>
+
+@code
 {
-<div class="spinner">Loading...</div>
-}
-else if (products.Any())
-{
-<div class="product-grid">
-@foreach (var product in products)
-{
-<div class="product-card" @key="product.Id">
-<img src="@product.ImageUrl" alt="@product.Name"/>
-<h3>@product.Name</h3>
-<p class="price">$@product.Price</p>
-<button @onclick="() => AddToCart(product)">Add to Cart</button>
-</div>
-}
-</div>
-}
-else
-{
-<p>No products found.</p>
-}
-@code {
-private List<Product> products = new();
-private bool isLoading = true;
-protected override async Task OnInitializedAsync()
-{
-try
-{
-products = await ProductService.GetProductsAsync();
-}
-catch (Exception ex)
-{
-Logger.LogError(ex, "Failed to load products");
-}
-finally
-{
-isLoading = false;
-}
-}
-private void AddToCart(Product product)
-{
-// Add to cart logic
-}
+	private int currentCount = 0;
+
+	int IncrementCount()
+	{
+	currentCount++;
+	return currentCount;
+	}
 }

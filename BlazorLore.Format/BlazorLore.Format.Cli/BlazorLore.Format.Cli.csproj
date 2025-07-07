@@ -22,7 +22,7 @@
     
     <!-- NuGet package metadata -->
     <PackageId>BlazorLore.Format.Cli</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>BlazorLore Team</Authors>
     <Company>BlazorLore</Company>
     <Description>A powerful formatter for Blazor and Razor components, similar to Prettier for HTML/CSS/JS</Description>

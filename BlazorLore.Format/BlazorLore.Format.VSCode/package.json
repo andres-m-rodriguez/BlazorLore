@@ -2,7 +2,7 @@
   "name": "blazor-formatter",
   "displayName": "Blazor Formatter",
   "description": "A Prettier-like formatter for Blazor and Razor components",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "blazorlore",
   "engines": {
     "vscode": "^1.74.0"
